@@ -318,17 +318,9 @@ function StatsHeader({ risk, setRisk, stats }) {
   );
 }
 
-function calcLots(par, pips, riskAmount) {
-  const pipValuePerLot = par === "XAU/USD" ? 1 : 10;
-  return Math.max(0.01, riskAmount / (pips * pipValuePerLot));
-}
-
-function formatSignalText(signal, risk) {
+function formatSignalText(signal) {
   const dir = signal.direccion === "venta" ? "VENTA" : "COMPRA";
   const estadoInfo = ESTADO_STYLES[signal.estado] || { label: signal.estado };
-  const ejemploBalance = 1000;
-  const riskAmount = (ejemploBalance * risk) / 100;
-  const lots = calcLots(signal.par, signal.pips, riskAmount);
   return [
     `📊 *${signal.par}* — ${dir}`,
     `Estado: ${estadoInfo.label}`,
@@ -338,13 +330,11 @@ function formatSignalText(signal, risk) {
     `Take Profit: ${signal.tp.toFixed(5)}`,
     `Tipo de orden: ${signal.tipoOrden}`,
     ``,
-    `Ejemplo de lotaje (cuenta de $${ejemploBalance}, riesgo ${risk}%): ${lots.toFixed(2)} lotes`,
-    ``,
     `Operación Trading — ${signal.autor}`,
   ].join("\n");
 }
 
-function CopySignalButton({ signal, risk }) {
+function CopySignalButton({ signal }) {
   const [status, setStatus] = useState(null); // "text" | "image" | "shared"
 
   const flash = (s) => {
@@ -353,7 +343,7 @@ function CopySignalButton({ signal, risk }) {
   };
 
   const handleShare = async () => {
-    const text = formatSignalText(signal, risk);
+    const text = formatSignalText(signal);
     try {
       if (navigator.share) {
         let files = [];
@@ -377,7 +367,7 @@ function CopySignalButton({ signal, risk }) {
   };
 
   const handleCopyTextOnly = async () => {
-    const text = formatSignalText(signal, risk);
+    const text = formatSignalText(signal);
     await navigator.clipboard.writeText(text);
     flash("text");
   };
@@ -447,13 +437,7 @@ function CopySignalButton({ signal, risk }) {
 }
 
 function DetailView({ signal, onBack, risk, onEdit }) {
-  const [showCalc, setShowCalc] = useState(false);
-  const [balance, setBalance] = useState(1000);
-  const [calcRisk, setCalcRisk] = useState(risk);
   const estadoInfo = ESTADO_STYLES[signal.estado] || { label: signal.estado, color: C.textDim };
-
-  const riskAmount = (balance * calcRisk) / 100;
-  const lots = calcLots(signal.par, signal.pips, riskAmount);
 
   return (
     <div className="max-w-md mx-auto">
@@ -501,92 +485,27 @@ function DetailView({ signal, onBack, risk, onEdit }) {
       </div>
       <div className="flex gap-3 mb-3">
         <CopyField label="TAKE PROFIT" value={signal.tp} formatted={signal.tp.toFixed(5)} color={C.green} />
-        <button
-          onClick={() => setShowCalc(true)}
+        <a
+          href="https://www.myfxbook.com/forex-calculators/position-size"
+          target="_blank"
+          rel="noreferrer"
           className="flex-1 rounded-2xl px-4 py-4 text-left transition-colors flex flex-col items-center justify-center"
           style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
         >
           <Calculator size={18} color={C.blue} className="mb-1" />
-          <span className="text-sm font-medium" style={{ color: C.text }}>Calcular posición</span>
-        </button>
+          <span className="text-sm font-medium text-center" style={{ color: C.text }}>Calculadora de lotaje</span>
+        </a>
       </div>
+      <p className="text-[11px] text-center mb-3 px-2" style={{ color: C.textDim }}>
+        Te llevamos a una calculadora externa (myfxbook) que usa el precio y el instrumento real — así el lotaje sugerido es correcto para tu cuenta y bróker.
+      </p>
 
       <div className="rounded-2xl px-5 py-4 flex items-center justify-between mb-3" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
         <span className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>TIPO DE ORDEN</span>
         <span className="text-[15px] font-semibold" style={{ color: C.text }}>{signal.tipoOrden}</span>
       </div>
 
-      <CopySignalButton signal={signal} risk={calcRisk} />
-
-      {showCalc && (
-        <div
-          className="fixed inset-0 flex items-end justify-center z-50"
-          style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
-          onClick={() => setShowCalc(false)}
-        >
-          <div
-            className="rounded-t-3xl w-full max-w-md p-6"
-            style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderBottom: "none" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-[15px] font-semibold" style={{ color: C.text }}>Calcular posición</span>
-              <button onClick={() => setShowCalc(false)}>
-                <X size={20} color={C.textDim} />
-              </button>
-            </div>
-            <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>
-              BALANCE DE CUENTA (USD)
-            </label>
-            <input
-              type="number"
-              value={balance}
-              onChange={(e) => setBalance(Number(e.target.value) || 0)}
-              className="w-full mt-1 mb-4 rounded-xl px-4 py-3 text-lg font-mono outline-none"
-              style={{ backgroundColor: C.cardAlt, color: C.text, border: `1px solid ${C.border}` }}
-            />
-            <div className="mb-4">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm" style={{ color: C.textDim }}>% de riesgo</span>
-                <span className="font-semibold text-sm" style={{ color: C.text }}>{calcRisk}%</span>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {[0.25, 0.33, 0.5, 1, 2, 3, 4, 5].map((r) => (
-                  <button
-                    key={r}
-                    onClick={() => setCalcRisk(r)}
-                    className="px-2.5 h-8 rounded-full text-[11px] font-semibold flex items-center justify-center transition-colors"
-                    style={{
-                      backgroundColor: calcRisk === r ? C.green : "transparent",
-                      color: calcRisk === r ? "#08090B" : C.textDim,
-                      border: calcRisk === r ? "none" : `1px solid ${C.border}`,
-                    }}
-                  >
-                    {r}%
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="flex justify-between text-sm mb-2">
-              <span style={{ color: C.textDim }}>Monto en riesgo</span>
-              <span className="font-semibold" style={{ color: C.text }}>${riskAmount.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-sm mb-4">
-              <span style={{ color: C.textDim }}>Distancia al SL</span>
-              <span className="font-semibold" style={{ color: C.text }}>{signal.pips} pips</span>
-            </div>
-            <div className="rounded-2xl p-4 text-center" style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.border}` }}>
-              <div className="text-[11px] tracking-wide font-medium mb-1" style={{ color: C.textDim }}>
-                TAMAÑO DE POSICIÓN SUGERIDO
-              </div>
-              <div className="text-2xl font-bold font-mono" style={{ color: C.green }}>{lots.toFixed(2)} lotes</div>
-            </div>
-            <p className="text-[11px] mt-3 text-center" style={{ color: C.textDim }}>
-              Estimación simplificada, no constituye asesoramiento financiero.
-            </p>
-          </div>
-        </div>
-      )}
+      <CopySignalButton signal={signal} />
     </div>
   );
 }
@@ -899,7 +818,7 @@ function NoticiasView({ themeName }) {
           <span className="text-[12px] font-semibold" style={{ color: C.text }}>Cómo leer el calendario</span>
         </div>
         <div className="flex flex-col gap-2 text-[12px]" style={{ color: C.textDim }}>
-          <p><span style={{ color: C.text, fontWeight: 600 }}>★★★ (alto impacto)</span>: son las únicas que mostramos acá — suelen mover fuerte el mercado.</p>
+          <p><span style={{ color: C.text, fontWeight: 600 }}>Barras de impacto</span>: TradingView marca cada noticia con barras — nosotros ya filtramos para mostrarte solo las de <span style={{ color: C.text, fontWeight: 600 }}>mayor impacto (todas las barras marcadas)</span>, que son las que más mueven el mercado.</p>
           <p><span style={{ color: C.text, fontWeight: 600 }}>Actual</span>: el dato real, ya publicado.</p>
           <p><span style={{ color: C.text, fontWeight: 600 }}>Previsión</span>: lo que el mercado esperaba antes de la publicación.</p>
           <p><span style={{ color: C.text, fontWeight: 600 }}>Anterior</span>: el mismo dato, del período pasado.</p>
@@ -910,9 +829,45 @@ function NoticiasView({ themeName }) {
       <div className="rounded-2xl overflow-hidden p-2" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
         <div ref={containerRef} className="tradingview-widget-container" />
       </div>
-      <p className="text-[11px] text-center mt-3 px-4" style={{ color: C.textDim }}>
+      <p className="text-[11px] text-center mt-3 px-4 mb-4" style={{ color: C.textDim }}>
         Mostrando solo noticias de alto impacto de USD, EUR, GBP, JPY y NZD — no existen calendarios económicos propios para oro, BTC o índices (no son países/bancos centrales), pero estas son las noticias que más los mueven. Calendario provisto por TradingView.
       </p>
+
+      <div
+        className="rounded-2xl p-4"
+        style={{ backgroundColor: "rgba(240,180,41,0.10)", border: "1px solid rgba(240,180,41,0.35)" }}
+      >
+        <div className="flex items-center gap-2 mb-2">
+          <span style={{ fontSize: 15 }}>⚠️</span>
+          <span className="text-[12px] font-bold" style={{ color: "#F0B429" }}>
+            IMPORTANTE — OPERATIVA EN DÍAS DE NOTICIAS
+          </span>
+        </div>
+        <div className="flex flex-col gap-2 text-[12px]" style={{ color: C.textDim }}>
+          <p>
+            Desde Operación Trading recomendamos NO estar dentro de una operación durante la publicación de
+            noticias económicas de alto impacto, debido al aumento considerable de volatilidad, spreads,
+            deslizamientos y movimientos impredecibles que pueden producirse en el mercado.
+          </p>
+          <p>
+            Es responsabilidad exclusiva de cada trader consultar y revisar el calendario económico antes de
+            abrir o mantener una operación, verificando si existen noticias próximas que puedan afectar al
+            activo operado.
+          </p>
+          <p>
+            Operación Trading no se responsabiliza por pérdidas, ejecuciones desfavorables o cualquier
+            consecuencia derivada de operaciones que el usuario decida abrir o mantener durante períodos de
+            noticias.
+          </p>
+          <p>
+            La decisión de operar, permanecer en una posición o cerrarla es siempre responsabilidad individual
+            de cada usuario.
+          </p>
+          <p className="font-bold" style={{ color: "#F0B429" }}>
+            Ante una noticia de alto impacto, nuestra recomendación es clara: NO ESTAR EN MERCADO.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1392,40 +1347,18 @@ function ComunidadSubView({ onBack }) {
 }
 
 
-function TopBar({ nombre, avatar }) {
-  const fecha = new Date().toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" });
+function TopBar() {
   return (
     <div
-      className="sticky top-0 z-30 flex items-center justify-between px-4 py-2.5"
+      className="sticky top-0 z-30 flex items-center gap-2 px-4 py-2.5"
       style={{ backgroundColor: C.card, borderBottom: `1px solid ${C.border}` }}
     >
-      <div className="flex items-center gap-2">
-        <img src={LOGO.src} alt="Operación Trading" className="h-8" />
-        <div className="flex flex-col leading-none">
-          <span className="text-[13px] font-bold tracking-wide" style={{ color: C.text }}>APP TRADER</span>
-          <span className="text-[8px] tracking-widest font-medium" style={{ color: C.textDim }}>
-            DISCIPLINA&nbsp;·&nbsp;PACIENCIA&nbsp;·&nbsp;CONSTANCIA
-          </span>
-        </div>
-      </div>
-      <div className="flex items-center gap-2">
-        <div className="flex flex-col items-end leading-tight">
-          <span className="text-[11px] font-semibold" style={{ color: C.text }}>{nombre || "Invitado"}</span>
-          <div className="flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: C.green }} />
-            <span className="text-[9px]" style={{ color: C.textDim }}>Suscripción activa · {fecha}</span>
-          </div>
-        </div>
-        <div
-          className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden shrink-0"
-          style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.border}` }}
-        >
-          {avatar ? (
-            <img src={avatar} alt="Perfil" className="w-full h-full object-cover" />
-          ) : (
-            <Camera size={14} color={C.textDim} />
-          )}
-        </div>
+      <img src={LOGO.src} alt="Operación Trading" className="h-8 shrink-0" />
+      <div className="flex flex-col leading-none">
+        <span className="text-[13px] font-bold tracking-wide" style={{ color: C.text }}>APP TRADER</span>
+        <span className="text-[9px] tracking-wide font-medium" style={{ color: C.textDim }}>
+          Todo en un solo lugar
+        </span>
       </div>
     </div>
   );
@@ -1487,7 +1420,7 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: C.bg }}>
       {!termsAccepted && <TermsGate onAccept={() => setTermsAccepted(true)} />}
-      <TopBar nombre={nombre} avatar={avatar} />
+      <TopBar />
       <div className="flex-1 px-4 py-6 pb-24">
         <div className="max-w-md mx-auto">
           {tab === "senales" && view === "list" && (
@@ -1596,9 +1529,12 @@ export default function App() {
       )}
 
       <div
-        className="fixed left-0 right-0 flex items-center justify-center py-1.5 px-4"
+        className="fixed left-0 right-0 flex flex-col items-center justify-center gap-0.5 py-1.5 px-4"
         style={{ bottom: 64, backgroundColor: C.bg, borderTop: `1px solid ${C.borderSoft}` }}
       >
+        <span className="text-[10px] tracking-widest font-semibold" style={{ color: C.textDim }}>
+          DISCIPLINA&nbsp;&nbsp;|&nbsp;&nbsp;PACIENCIA&nbsp;&nbsp;|&nbsp;&nbsp;CONSTANCIA
+        </span>
         <span className="text-[9px] text-center" style={{ color: C.textDim }}>
           © Todos los derechos reservados a Operación Trading.
         </span>
