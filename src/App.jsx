@@ -258,7 +258,9 @@ function SignalCard({ signal, onOpen }) {
     >
       <div className="px-5 py-3 flex items-center justify-between" style={{ backgroundColor: C.cardAlt, borderBottom: `1px solid ${C.borderSoft}` }}>
         <div>
-          <div className="font-semibold text-[15px]" style={{ color: C.text }}>{signal.par}</div>
+          <div className="font-semibold text-[15px]" style={{ color: C.text }}>
+            {signal.par} <span style={{ color: C.textDim, fontWeight: 400 }}>Operación #{signal.id}</span>
+          </div>
           <div className="text-xs mt-0.5" style={{ color: C.textDim }}>{signal.autor}</div>
         </div>
         <div className="text-right">
@@ -325,9 +327,9 @@ function formatSignalText(signal) {
     `📊 *${signal.par}* — ${dir}`,
     `Estado: ${estadoInfo.label}`,
     ``,
-    `Entrada: ${signal.entrada.toFixed(5)}`,
-    `Stop Loss: ${signal.sl.toFixed(5)}`,
-    `Take Profit: ${signal.tp.toFixed(5)}`,
+    `Entrada: ${formatPrice(signal.entrada)}`,
+    `Stop Loss: ${formatPrice(signal.sl)}`,
+    `Take Profit: ${formatPrice(signal.tp)}`,
     `Tipo de orden: ${signal.tipoOrden}`,
     ``,
     `Operación Trading — ${signal.autor}`,
@@ -446,7 +448,7 @@ function DetailView({ signal, onBack, risk, onEdit }) {
           <button onClick={onBack} className="p-1 -ml-1">
             <ArrowLeft size={22} color={C.text} />
           </button>
-          <span className="text-[15px] font-semibold" style={{ color: C.text }}>Detalles de Señal</span>
+          <span className="text-[15px] font-semibold" style={{ color: C.text }}>Detalles de Operación #{signal.id}</span>
         </div>
         <button
           onClick={onEdit}
@@ -480,11 +482,11 @@ function DetailView({ signal, onBack, risk, onEdit }) {
       </div>
 
       <div className="flex gap-3 mb-3">
-        <CopyField label="PRECIO ENTRADA" value={signal.entrada} formatted={signal.entrada.toFixed(5)} />
-        <CopyField label="STOP LOSS" value={signal.sl} formatted={signal.sl.toFixed(5)} color={C.red} />
+        <CopyField label="PRECIO ENTRADA" value={signal.entrada} formatted={formatPrice(signal.entrada)} />
+        <CopyField label="STOP LOSS" value={signal.sl} formatted={formatPrice(signal.sl)} color={C.red} />
       </div>
       <div className="flex gap-3 mb-3">
-        <CopyField label="TAKE PROFIT" value={signal.tp} formatted={signal.tp.toFixed(5)} color={C.green} />
+        <CopyField label="TAKE PROFIT" value={signal.tp} formatted={formatPrice(signal.tp)} color={C.green} />
         <a
           href="https://www.myfxbook.com/forex-calculators/position-size"
           target="_blank"
@@ -512,6 +514,12 @@ function DetailView({ signal, onBack, risk, onEdit }) {
 
 const ESTADOS = ["pendiente", "activa", "ganada", "perdida", "descartada"];
 const TIPOS_ORDEN = ["Buy Limit", "Sell Limit", "Buy Stop", "Sell Stop", "Market"];
+
+function formatPrice(n) {
+  if (n === null || n === undefined || isNaN(n)) return "";
+  // Redondea a 6 decimales (evita errores de coma flotante) y saca los ceros que sobran
+  return parseFloat(Number(n).toFixed(6)).toString();
+}
 
 function calcPips(par, entrada, sl) {
   const e = Number(entrada);
@@ -1347,18 +1355,45 @@ function ComunidadSubView({ onBack }) {
 }
 
 
-function TopBar() {
+function TopBar({ nombre, avatar }) {
+  const fecha = new Date().toLocaleDateString("es-AR", { day: "2-digit", month: "short" });
   return (
     <div
-      className="sticky top-0 z-30 flex items-center gap-2 px-4 py-2.5"
+      className="sticky top-0 z-30 flex items-center justify-between gap-2 px-3 py-2"
       style={{ backgroundColor: C.card, borderBottom: `1px solid ${C.border}` }}
     >
-      <img src={LOGO.src} alt="Operación Trading" className="h-8 shrink-0" />
-      <div className="flex flex-col leading-none">
-        <span className="text-[13px] font-bold tracking-wide" style={{ color: C.text }}>APP TRADER</span>
-        <span className="text-[9px] tracking-wide font-medium" style={{ color: C.textDim }}>
-          Todo en un solo lugar
-        </span>
+      <div className="flex items-center gap-2 shrink-0">
+        <img src={LOGO.src} alt="Operación Trading" className="h-8 shrink-0" />
+        <div className="flex flex-col leading-none">
+          <span className="text-[12px] font-bold tracking-wide whitespace-nowrap" style={{ color: C.text }}>
+            APP TRADER
+          </span>
+          <span className="text-[8px] tracking-wide font-medium whitespace-nowrap" style={{ color: C.textDim }}>
+            Todo en un solo lugar
+          </span>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-1.5 min-w-0">
+        <div className="flex flex-col items-end leading-tight min-w-0">
+          <span className="text-[10px] font-semibold truncate max-w-[90px]" style={{ color: C.text }}>
+            {nombre || "Invitado"}
+          </span>
+          <div className="flex items-center gap-1 whitespace-nowrap">
+            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: C.green }} />
+            <span className="text-[8px]" style={{ color: C.textDim }}>Activa · {fecha}</span>
+          </div>
+        </div>
+        <div
+          className="w-7 h-7 rounded-full flex items-center justify-center overflow-hidden shrink-0"
+          style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.border}` }}
+        >
+          {avatar ? (
+            <img src={avatar} alt="Perfil" className="w-full h-full object-cover" />
+          ) : (
+            <Camera size={12} color={C.textDim} />
+          )}
+        </div>
       </div>
     </div>
   );
@@ -1420,20 +1455,25 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: C.bg }}>
       {!termsAccepted && <TermsGate onAccept={() => setTermsAccepted(true)} />}
-      <TopBar />
+      <TopBar nombre={nombre} avatar={avatar} />
       <div className="flex-1 px-4 py-6 pb-24">
         <div className="max-w-md mx-auto">
           {tab === "senales" && view === "list" && (
             <>
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-lg font-bold" style={{ color: C.text }}>Señales</span>
+              <div className="relative flex items-center justify-center mb-4">
+                <span
+                  className="text-[11px] tracking-widest font-semibold text-center"
+                  style={{ color: C.textDim }}
+                >
+                  SEÑALES
+                </span>
                 <button
                   onClick={() => setShowAdminForm(true)}
-                  className="w-10 h-10 rounded-full flex items-center justify-center"
+                  className="absolute right-0 w-9 h-9 rounded-full flex items-center justify-center"
                   style={{ backgroundColor: C.green }}
                   aria-label="Nueva señal"
                 >
-                  <Plus size={20} color="#08090B" />
+                  <Plus size={18} color="#08090B" />
                 </button>
               </div>
               <StatsHeader risk={risk} setRisk={setRisk} stats={stats} />
