@@ -236,6 +236,29 @@ async function updateComprobante(id, payload, accessToken) {
   return res.json();
 }
 
+async function fetchNovedades() {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/novedades?select=*&order=created_at.desc`, {
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+  });
+  if (!res.ok) throw new Error("No se pudieron cargar las novedades");
+  return res.json();
+}
+
+async function createNovedad(payload) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/novedades`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      "Content-Type": "application/json",
+      Prefer: "return=representation",
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error("No se pudo crear la novedad");
+  return res.json();
+}
+
 async function fetchPendingCount(accessToken) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/profiles?aprobado=eq.false&select=id`, {
     headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${accessToken}` },
@@ -1145,13 +1168,146 @@ function NoticiasView({ themeName }) {
   );
 }
 
-function NovedadesView() {
+function NovedadForm({ onClose, onCreated }) {
+  const [tipo, setTipo] = useState("noticia");
+  const [titulo, setTitulo] = useState("");
+  const [fecha, setFecha] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+
+  const inputStyle = { backgroundColor: C.cardAlt, color: C.text, border: `1px solid ${C.border}` };
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await createNovedad({ tipo, titulo: titulo.trim(), fecha: fecha.trim() });
+      onCreated();
+      onClose();
+    } catch (err) {
+      setError(err.message || "No se pudo guardar la novedad");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center"
+      style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
+      onClick={onClose}
+    >
+      <div
+        className="rounded-t-3xl w-full max-w-md p-6"
+        style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderBottom: "none" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <span className="text-[15px] font-semibold" style={{ color: C.text }}>Nueva novedad</span>
+          <button onClick={onClose}>
+            <X size={20} color={C.textDim} />
+          </button>
+        </div>
+
+        <div className="mb-3">
+          <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>TIPO</label>
+          <div className="flex gap-2 mt-1">
+            {[{ v: "noticia", l: "Noticia" }, { v: "evento", l: "Clase en vivo" }].map((opt) => (
+              <button
+                key={opt.v}
+                onClick={() => setTipo(opt.v)}
+                className="flex-1 rounded-xl py-2.5 text-sm font-semibold"
+                style={{
+                  backgroundColor: tipo === opt.v ? C.green : C.cardAlt,
+                  color: tipo === opt.v ? "#08090B" : C.textDim,
+                  border: `1px solid ${C.border}`,
+                }}
+              >
+                {opt.l}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="mb-3">
+          <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>TÍTULO</label>
+          <input
+            value={titulo}
+            onChange={(e) => setTitulo(e.target.value)}
+            className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
+            style={inputStyle}
+          />
+        </div>
+
+        <div className="mb-4">
+          <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>FECHA / HORARIO</label>
+          <input
+            value={fecha}
+            onChange={(e) => setFecha(e.target.value)}
+            placeholder="Ej: 12 sep 2026 · 20:00hs"
+            className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
+            style={inputStyle}
+          />
+        </div>
+
+        {error && <p className="text-sm text-center mb-3" style={{ color: C.red }}>{error}</p>}
+
+        <button
+          onClick={handleSubmit}
+          disabled={!titulo.trim() || submitting}
+          className="w-full rounded-2xl py-4 text-[15px] font-semibold"
+          style={{
+            backgroundColor: titulo.trim() && !submitting ? C.green : C.borderSoft,
+            color: titulo.trim() && !submitting ? "#08090B" : C.textDim,
+          }}
+        >
+          {submitting ? "Guardando..." : "Publicar novedad"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function NovedadesView({ isAdmin }) {
+  const [novedades, setNovedades] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+
+  const load = () => {
+    setLoading(true);
+    fetchNovedades()
+      .then((data) => {
+        setNovedades(data);
+        setError(null);
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
+  };
+
+  React.useEffect(() => {
+    load();
+  }, []);
+
   return (
     <div className="max-w-md mx-auto">
+      {isAdmin && (
+        <button
+          onClick={() => setShowForm(true)}
+          className="w-full rounded-2xl py-3 mb-4 text-sm font-semibold"
+          style={{ backgroundColor: C.green, color: "#08090B" }}
+        >
+          + Nueva novedad
+        </button>
+      )}
+
+      {loading && <p className="text-sm text-center py-10" style={{ color: C.textDim }}>Cargando...</p>}
+      {!loading && error && <p className="text-sm text-center py-10" style={{ color: C.red }}>{error}</p>}
+
       <div className="flex flex-col gap-3">
-        {NOVEDADES.map((n, i) => (
+        {!loading && !error && novedades.map((n) => (
           <div
-            key={i}
+            key={n.id}
             className="rounded-2xl px-5 py-4 flex items-start gap-3"
             style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
           >
@@ -1166,7 +1322,12 @@ function NovedadesView() {
             </div>
           </div>
         ))}
+        {!loading && !error && novedades.length === 0 && (
+          <p className="text-sm text-center py-10" style={{ color: C.textDim }}>Todavía no hay novedades cargadas.</p>
+        )}
       </div>
+
+      {showForm && <NovedadForm onClose={() => setShowForm(false)} onCreated={load} />}
     </div>
   );
 }
@@ -1504,23 +1665,27 @@ function LoginView({ onLogin, onSignup }) {
 
             {error && <p className="text-sm text-center mb-4" style={{ color: C.red }}>{error}</p>}
 
-            <button
-              type="submit"
-              disabled={
+            {(() => {
+              const blocked =
                 loading ||
                 !email ||
                 !password ||
                 (mode === "signup" &&
-                  (!nombre || esComunidad === null || (esComunidad === true && !discordUsuario.trim()) || !termsChecked))
-              }
-              className="w-full rounded-2xl py-4 text-[15px] font-semibold"
-              style={{
-                backgroundColor: loading || !email || !password ? C.borderSoft : C.green,
-                color: loading || !email || !password ? C.textDim : "#08090B",
-              }}
-            >
-              {loading ? "Un momento..." : mode === "login" ? "Ingresar" : "Crear cuenta"}
-            </button>
+                  (!nombre || esComunidad === null || (esComunidad === true && !discordUsuario.trim()) || !termsChecked));
+              return (
+                <button
+                  type="submit"
+                  disabled={blocked}
+                  className="w-full rounded-2xl py-4 text-[15px] font-semibold"
+                  style={{
+                    backgroundColor: blocked ? C.borderSoft : C.green,
+                    color: blocked ? C.textDim : "#08090B",
+                  }}
+                >
+                  {loading ? "Un momento..." : mode === "login" ? "Ingresar" : "Crear cuenta"}
+                </button>
+              );
+            })()}
 
             <button
               type="button"
@@ -1737,10 +1902,30 @@ function TermsGate({ onAccept }) {
   );
 }
 
-function InicioDashboard({ signals, isAdmin, onOpenSignal, onNuevaSenal, onGoTab }) {
-  const ultimaSenal = signals && signals.length > 0 ? signals[0] : null;
-  const proximoEvento = NOVEDADES.find((n) => n.tipo === "evento");
-  const novedadDestacada = NOVEDADES.find((n) => n.tipo === "noticia");
+function InicioDashboard({ signals, isAdmin, onOpenSignal, onNuevaSenal, onNavigate }) {
+  const ultimaActiva = signals?.find((s) => s.estado === "activa") || signals?.[0] || null;
+  const [novedades, setNovedades] = useState([]);
+
+  React.useEffect(() => {
+    fetchNovedades()
+      .then(setNovedades)
+      .catch(() => setNovedades([]));
+  }, []);
+
+  const proximoEvento = novedades.find((n) => n.tipo === "evento");
+  const novedadDestacada = novedades.find((n) => n.tipo === "noticia");
+
+  const mainButtons = [
+    { label: "Señales", icon: BarChart3, onClick: () => onNavigate("senales") },
+    { label: "Broker", icon: Landmark, onClick: () => onNavigate("broker") },
+    { label: "Bitácora", icon: Wrench, onClick: () => onNavigate("herramientas", { herramientasView: "bitacora" }) },
+  ];
+
+  const subButtons = [
+    { label: "Herramientas", icon: Wrench, onClick: () => onNavigate("herramientas") },
+    { label: "Formación", icon: GraduationCap, onClick: () => onNavigate("mas", { masSection: "formacion" }) },
+    { label: "Comunidad y Productos", icon: Users, onClick: () => onNavigate("mas", { masSection: "comunidad-productos" }) },
+  ];
 
   return (
     <div className="max-w-md mx-auto">
@@ -1748,13 +1933,13 @@ function InicioDashboard({ signals, isAdmin, onOpenSignal, onNuevaSenal, onGoTab
         <img src={LOGO.src} alt="Operación Trading" className="w-24" />
       </div>
 
-      {/* Señal destacada */}
-      <div className="mb-3">
+      {/* Última señal activa */}
+      <div className="mb-4">
         <div className="text-[11px] tracking-widest font-semibold mb-2" style={{ color: C.textDim }}>
-          ÚLTIMA SEÑAL
+          ÚLTIMA SEÑAL ACTIVA
         </div>
-        {ultimaSenal ? (
-          <SignalCard signal={ultimaSenal} onOpen={onOpenSignal} />
+        {ultimaActiva ? (
+          <SignalCard signal={ultimaActiva} onOpen={onOpenSignal} />
         ) : (
           <div className="rounded-2xl px-5 py-6 text-center" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
             <span className="text-sm" style={{ color: C.textDim }}>Todavía no hay señales cargadas.</span>
@@ -1762,37 +1947,45 @@ function InicioDashboard({ signals, isAdmin, onOpenSignal, onNuevaSenal, onGoTab
         )}
       </div>
 
-      {/* Accesos rápidos */}
-      <div className="grid grid-cols-2 gap-3 mb-3">
-        <button
-          onClick={() => onGoTab("broker")}
-          className="rounded-2xl px-4 py-4 flex flex-col items-center gap-1.5"
-          style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
-        >
-          <Landmark size={20} color={C.green} />
-          <span className="text-xs font-medium" style={{ color: C.text }}>Acceso al broker</span>
-        </button>
-        <button
-          onClick={() => {
-            onGoTab("herramientas");
-          }}
-          className="rounded-2xl px-4 py-4 flex flex-col items-center gap-1.5"
-          style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
-        >
-          <Calculator size={20} color={C.green} />
-          <span className="text-xs font-medium text-center" style={{ color: C.text }}>Calculadora de riesgo</span>
-        </button>
-      </div>
-
       {isAdmin && (
         <button
           onClick={onNuevaSenal}
-          className="w-full rounded-2xl py-3.5 mb-3 text-sm font-semibold"
+          className="w-full rounded-2xl py-3.5 mb-4 text-sm font-semibold"
           style={{ backgroundColor: C.green, color: "#08090B" }}
         >
           + Registrar operación
         </button>
       )}
+
+      {/* Fila principal: Señales / Broker / Bitácora */}
+      <div className="grid grid-cols-3 gap-2 mb-3">
+        {mainButtons.map((b) => (
+          <button
+            key={b.label}
+            onClick={b.onClick}
+            className="rounded-2xl px-2 py-4 flex flex-col items-center gap-1.5"
+            style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
+          >
+            <b.icon size={20} color={C.green} />
+            <span className="text-[11px] font-semibold text-center" style={{ color: C.text }}>{b.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Fila secundaria: Herramientas / Formación / Comunidad y Productos */}
+      <div className="grid grid-cols-3 gap-2 mb-4">
+        {subButtons.map((b) => (
+          <button
+            key={b.label}
+            onClick={b.onClick}
+            className="rounded-xl px-2 py-3 flex flex-col items-center gap-1"
+            style={{ backgroundColor: "transparent", border: `1px solid ${C.borderSoft}` }}
+          >
+            <b.icon size={15} color={C.textDim} />
+            <span className="text-[9px] text-center leading-tight" style={{ color: C.textDim }}>{b.label}</span>
+          </button>
+        ))}
+      </div>
 
       {/* Próxima clase en vivo */}
       {proximoEvento && (
@@ -1859,9 +2052,12 @@ const TABS = [
   { id: "senales", label: "Señales", icon: BarChart3 },
   { id: "broker", label: "Broker", icon: Landmark },
   { id: "herramientas", label: "Herram.", icon: Wrench },
-  { id: "academia", label: "Academia", icon: GraduationCap },
-  { id: "comunidad", label: "Comunidad", icon: Users },
-  { id: "tienda", label: "Tienda", icon: ShoppingBag },
+  { id: "mas", label: "Más", icon: Menu },
+];
+
+const MAS_SECTIONS = [
+  { id: "formacion", label: "Formación", icon: GraduationCap },
+  { id: "comunidad-productos", label: "Comunidad y Productos", icon: Users },
 ];
 
 const BROKER_ITEMS = [
@@ -1897,7 +2093,7 @@ const ACADEMIA_ITEMS = [
   { id: "psicotrading", label: "Psicotrading" },
 ];
 
-const COMUNIDAD_ITEMS = [
+const COMUNIDAD_PRODUCTOS_ITEMS = [
   { id: "discord", label: "Discord y traders", real: true },
   { id: "clases-vivo", label: "Clases en vivo" },
   { id: "calendario-clases", label: "Calendario de clases" },
@@ -1908,12 +2104,9 @@ const COMUNIDAD_ITEMS = [
   { id: "soporte-com", label: "Soporte" },
   { id: "faq-com", label: "Preguntas frecuentes" },
   { id: "contacto", label: "Contacto" },
-];
-
-const TIENDA_ITEMS = [
   { id: "mentorias", label: "Mentorías privadas" },
   { id: "suscripciones-tienda", label: "Suscripciones" },
-  { id: "cursos-tienda", label: "Cursos" },
+  { id: "cursos-tienda", label: "Cursos (tienda)" },
   { id: "programas", label: "Programas intensivos" },
   { id: "clases-especiales", label: "Clases especiales" },
   { id: "indicadores", label: "Indicadores" },
@@ -1925,12 +2118,50 @@ const TIENDA_ITEMS = [
   { id: "planes-premium", label: "Planes premium" },
 ];
 
-function PillarMenu({ title, items, onSelect }) {
+function MasMenu({ onSelect }) {
   return (
     <div className="max-w-md mx-auto">
       <div className="text-[11px] tracking-widest font-semibold mb-4 text-center" style={{ color: C.textDim }}>
-        {title.toUpperCase()}
+        MÁS
       </div>
+      <div className="flex flex-col gap-3">
+        {MAS_SECTIONS.map((s) => {
+          const Icon = s.icon;
+          return (
+            <button
+              key={s.id}
+              onClick={() => onSelect(s.id)}
+              className="flex items-center justify-between rounded-2xl px-5 py-4"
+              style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
+            >
+              <div className="flex items-center gap-3">
+                <Icon size={18} color={C.green} />
+                <span className="font-medium text-[14px]" style={{ color: C.text }}>{s.label}</span>
+              </div>
+              <ArrowLeft size={16} color={C.textDim} style={{ transform: "rotate(180deg)" }} />
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function PillarMenu({ title, items, onSelect, onBack }) {
+  return (
+    <div className="max-w-md mx-auto">
+      {onBack ? (
+        <div className="flex items-center gap-3 mb-4">
+          <button onClick={onBack} className="p-1 -ml-1">
+            <ArrowLeft size={20} color={C.text} />
+          </button>
+          <span className="text-[15px] font-semibold" style={{ color: C.text }}>{title}</span>
+        </div>
+      ) : (
+        <div className="text-[11px] tracking-widest font-semibold mb-4 text-center" style={{ color: C.textDim }}>
+          {title.toUpperCase()}
+        </div>
+      )}
       <div className="flex flex-col gap-3">
         {items.map((item) => {
           const unlocked = item.real || item.external;
@@ -2606,7 +2837,7 @@ function BonosView({ onBack }) {
   );
 }
 
-function NovedadesSubView({ onBack }) {
+function NovedadesSubView({ onBack, isAdmin }) {
   return (
     <div className="max-w-md mx-auto">
       <div className="flex items-center gap-3 mb-4">
@@ -2615,7 +2846,7 @@ function NovedadesSubView({ onBack }) {
         </button>
         <span className="text-[15px] font-semibold" style={{ color: C.text }}>Novedades</span>
       </div>
-      <NovedadesView />
+      <NovedadesView isAdmin={isAdmin} />
     </div>
   );
 }
@@ -2737,9 +2968,9 @@ export default function App() {
   const [tab, setTab] = useState("senales");
   const [brokerView, setBrokerView] = useState(null);
   const [herramientasView, setHerramientasView] = useState(null);
-  const [academiaView, setAcademiaView] = useState(null);
-  const [comunidadView, setComunidadView] = useState(null);
-  const [tiendaView, setTiendaView] = useState(null);
+  const [masSection, setMasSection] = useState(null); // null | "formacion" | "comunidad-productos"
+  const [formacionView, setFormacionView] = useState(null);
+  const [comunidadProductosView, setComunidadProductosView] = useState(null);
   const [specialView, setSpecialView] = useState(null); // null | "config" | "usuarios"
   const [view, setView] = useState("list");
   const [selected, setSelected] = useState(null);
@@ -2840,9 +3071,9 @@ export default function App() {
     setSpecialView(null);
     setBrokerView(null);
     setHerramientasView(null);
-    setAcademiaView(null);
-    setComunidadView(null);
-    setTiendaView(null);
+    setMasSection(null);
+    setFormacionView(null);
+    setComunidadProductosView(null);
   };
 
   const isAdmin = !!session?.profile?.es_admin;
@@ -2878,6 +3109,7 @@ export default function App() {
   const openSignal = (sig) => {
     setSelected(sig);
     setView("detail");
+    setTab("senales");
   };
 
   if (restoringSession) {
@@ -2958,8 +3190,9 @@ export default function App() {
               <StatsHeader risk={risk} setRisk={setRisk} stats={stats} />
               <button
                 onClick={() => {
-                  setTab("academia");
-                  setAcademiaView("videos");
+                  setTab("mas");
+                  setMasSection("formacion");
+                  setFormacionView("videos");
                 }}
                 className="w-full text-center text-[12px] font-medium py-2.5 px-4 rounded-xl mb-4"
                 style={{ backgroundColor: C.blueSoft, color: C.blue }}
@@ -3023,7 +3256,11 @@ export default function App() {
               isAdmin={isAdmin}
               onOpenSignal={openSignal}
               onNuevaSenal={() => setShowAdminForm(true)}
-              onGoTab={(t) => setTab(t)}
+              onNavigate={(t, extra) => {
+                setTab(t);
+                if (extra?.herramientasView) setHerramientasView(extra.herramientasView);
+                if (extra?.masSection) setMasSection(extra.masSection);
+              }}
             />
           )}
 
@@ -3057,47 +3294,47 @@ export default function App() {
             />
           )}
 
-          {tab === "academia" && academiaView === null && (
-            <PillarMenu title="Academia" items={ACADEMIA_ITEMS} onSelect={setAcademiaView} />
+          {tab === "mas" && masSection === null && <MasMenu onSelect={setMasSection} />}
+
+          {tab === "mas" && masSection === "formacion" && formacionView === null && (
+            <PillarMenu title="Formación" items={ACADEMIA_ITEMS} onSelect={setFormacionView} onBack={() => setMasSection(null)} />
           )}
-          {tab === "academia" && academiaView === "videos" && (
-            <ClasesGrabadasView onBack={() => setAcademiaView(null)} />
+          {tab === "mas" && masSection === "formacion" && formacionView === "videos" && (
+            <ClasesGrabadasView onBack={() => setFormacionView(null)} />
           )}
-          {tab === "academia" && academiaView && academiaView !== "videos" && (
+          {tab === "mas" && masSection === "formacion" && formacionView && formacionView !== "videos" && (
             <PillarComingSoon
-              label={ACADEMIA_ITEMS.find((i) => i.id === academiaView)?.label}
-              onBack={() => setAcademiaView(null)}
+              label={ACADEMIA_ITEMS.find((i) => i.id === formacionView)?.label}
+              onBack={() => setFormacionView(null)}
             />
           )}
 
-          {tab === "comunidad" && comunidadView === null && (
-            <PillarMenu title="Comunidad" items={COMUNIDAD_ITEMS} onSelect={setComunidadView} />
-          )}
-          {tab === "comunidad" && comunidadView === "discord" && (
-            <ComunidadSubView onBack={() => setComunidadView(null)} />
-          )}
-          {tab === "comunidad" && comunidadView === "noticias-internas" && (
-            <NovedadesSubView onBack={() => setComunidadView(null)} />
-          )}
-          {tab === "comunidad" && comunidadView && !["discord", "noticias-internas"].includes(comunidadView) && (
-            <PillarComingSoon
-              label={COMUNIDAD_ITEMS.find((i) => i.id === comunidadView)?.label}
-              onBack={() => setComunidadView(null)}
+          {tab === "mas" && masSection === "comunidad-productos" && comunidadProductosView === null && (
+            <PillarMenu
+              title="Comunidad y Productos"
+              items={COMUNIDAD_PRODUCTOS_ITEMS}
+              onSelect={setComunidadProductosView}
+              onBack={() => setMasSection(null)}
             />
           )}
-
-          {tab === "tienda" && tiendaView === null && (
-            <PillarMenu title="Tienda" items={TIENDA_ITEMS} onSelect={setTiendaView} />
+          {tab === "mas" && masSection === "comunidad-productos" && comunidadProductosView === "discord" && (
+            <ComunidadSubView onBack={() => setComunidadProductosView(null)} />
           )}
-          {tab === "tienda" && tiendaView === "bonos" && (
-            <BonosView onBack={() => setTiendaView(null)} />
+          {tab === "mas" && masSection === "comunidad-productos" && comunidadProductosView === "noticias-internas" && (
+            <NovedadesSubView onBack={() => setComunidadProductosView(null)} isAdmin={isAdmin} />
           )}
-          {tab === "tienda" && tiendaView && tiendaView !== "bonos" && (
-            <PillarComingSoon
-              label={TIENDA_ITEMS.find((i) => i.id === tiendaView)?.label}
-              onBack={() => setTiendaView(null)}
-            />
+          {tab === "mas" && masSection === "comunidad-productos" && comunidadProductosView === "bonos" && (
+            <BonosView onBack={() => setComunidadProductosView(null)} />
           )}
+          {tab === "mas" &&
+            masSection === "comunidad-productos" &&
+            comunidadProductosView &&
+            !["discord", "noticias-internas", "bonos"].includes(comunidadProductosView) && (
+              <PillarComingSoon
+                label={COMUNIDAD_PRODUCTOS_ITEMS.find((i) => i.id === comunidadProductosView)?.label}
+                onBack={() => setComunidadProductosView(null)}
+              />
+            )}
 
           </>
           )}
@@ -3166,9 +3403,11 @@ export default function App() {
                 if (t.id === "senales") setView("list");
                 if (t.id === "broker") setBrokerView(null);
                 if (t.id === "herramientas") setHerramientasView(null);
-                if (t.id === "academia") setAcademiaView(null);
-                if (t.id === "comunidad") setComunidadView(null);
-                if (t.id === "tienda") setTiendaView(null);
+                if (t.id === "mas") {
+                  setMasSection(null);
+                  setFormacionView(null);
+                  setComunidadProductosView(null);
+                }
               }}
               className="flex flex-col items-center gap-0.5 px-1 py-1 flex-1 min-w-0"
             >
