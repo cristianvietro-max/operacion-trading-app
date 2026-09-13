@@ -637,18 +637,8 @@ function SignalCard({ signal, onOpen, compact }) {
             </span>
           </div>
           <div className="flex items-center gap-1">
-            {signal.estado === "ganada" && (
-              <>
-                <ThumbsUp size={13} color={C.green} />
-                <span className="text-[10px] font-medium" style={{ color: C.green }}>Ganada</span>
-              </>
-            )}
-            {signal.estado === "perdida" && (
-              <>
-                <ThumbsDown size={13} color={C.red} />
-                <span className="text-[10px] font-medium" style={{ color: C.red }}>Perdida</span>
-              </>
-            )}
+            {signal.estado === "ganada" && <ThumbsUp size={14} color={C.green} />}
+            {signal.estado === "perdida" && <ThumbsDown size={14} color={C.red} />}
             {signal.estado !== "ganada" && signal.estado !== "perdida" && (
               <span className="text-[10px] font-medium" style={{ color: estado.color }}>{estado.label}</span>
             )}
@@ -683,9 +673,9 @@ function SignalCard({ signal, onOpen, compact }) {
             {signal.direccion === "venta" ? "VENTA" : "COMPRA"}
           </div>
           <div className="text-xs mt-0.5 flex items-center justify-end gap-1" style={{ color: estado.color }}>
-            {signal.estado === "ganada" && <ThumbsUp size={12} color={C.green} />}
-            {signal.estado === "perdida" && <ThumbsDown size={12} color={C.red} />}
-            {signal.estado !== "ganada" && signal.estado !== "perdida" ? estado.label : (signal.estado === "ganada" ? "Ganada" : "Perdida")}
+            {signal.estado === "ganada" && <ThumbsUp size={14} color={C.green} />}
+            {signal.estado === "perdida" && <ThumbsDown size={14} color={C.red} />}
+            {signal.estado !== "ganada" && signal.estado !== "perdida" && estado.label}
           </div>
         </div>
       </div>
@@ -2409,7 +2399,7 @@ function PlanesProView({ onBack }) {
 }
 
 function InicioDashboard({ signals, isAdmin, onOpenSignal, onNuevaSenal, onNavigate, onDesbloquearPro, profile }) {
-  const ultimaActiva = signals?.find((s) => s.estado === "activa") || signals?.[0] || null;
+  const ultimasSenales = (signals || []).slice(0, 2);
   const [novedades, setNovedades] = useState([]);
 
   React.useEffect(() => {
@@ -2435,13 +2425,17 @@ function InicioDashboard({ signals, isAdmin, onOpenSignal, onNuevaSenal, onNavig
 
   return (
     <div className="max-w-md mx-auto">
-      {/* Última señal activa */}
+      {/* Últimas señales */}
       <div className="mb-4">
         <div className="text-[11px] tracking-widest font-semibold mb-2" style={{ color: C.textDim }}>
-          ÚLTIMA SEÑAL ACTIVA
+          ÚLTIMAS SEÑALES
         </div>
-        {ultimaActiva ? (
-          <SignalCard signal={ultimaActiva} onOpen={onOpenSignal} />
+        {ultimasSenales.length > 0 ? (
+          <div className="grid grid-cols-2 gap-3">
+            {ultimasSenales.map((s) => (
+              <SignalCard key={s.id} signal={s} onOpen={onOpenSignal} compact />
+            ))}
+          </div>
         ) : (
           <div className="rounded-2xl px-5 py-6 text-center" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
             <span className="text-sm" style={{ color: C.textDim }}>Todavía no hay señales cargadas.</span>
@@ -2577,8 +2571,7 @@ const TABS = [
 ];
 
 const MAS_SECTIONS = [
-  { id: "formacion", label: "Formación", icon: GraduationCap },
-  { id: "comunidad", label: "Comunidad Operación Trading", icon: Users },
+  { id: "calendario-mas", label: "Calendario económico", icon: CalendarDays },
   { id: "tienda", label: "Tienda", icon: ShoppingBag },
   { id: "soporte", label: "Soporte", icon: MessageCircle },
 ];
@@ -2601,7 +2594,6 @@ const HERRAMIENTAS_ITEMS = [
   { id: "backtesting", label: "Backtesting" },
   { id: "bitacora", label: "Bitácora" },
   { id: "calculadoras", label: "Calculadoras", external: "https://www.myfxbook.com/forex-calculators" },
-  { id: "calendario", label: "Calendario económico", real: true },
   { id: "plan-trading", label: "Plan de trading" },
   { id: "estadisticas", label: "Estadísticas" },
 ];
@@ -4017,9 +4009,6 @@ export default function App() {
           {tab === "herramientas" && herramientasView === null && (
             <PillarMenu title="Herramientas" items={HERRAMIENTAS_ITEMS} onSelect={setHerramientasView} onBack={goHome} />
           )}
-          {tab === "herramientas" && herramientasView === "calendario" && (
-            <CalendarioEconomicoWrap themeName={themeName} onBack={goHome} />
-          )}
           {tab === "herramientas" && herramientasView === "calculadoras" && (
             <PillarExternal
               label="Calculadoras"
@@ -4027,7 +4016,7 @@ export default function App() {
               onBack={goHome}
             />
           )}
-          {tab === "herramientas" && herramientasView && !["calendario", "calculadoras"].includes(herramientasView) && (
+          {tab === "herramientas" && herramientasView && herramientasView !== "calculadoras" && (
             <PillarComingSoon
               label={HERRAMIENTAS_ITEMS.find((i) => i.id === herramientasView)?.label}
               onBack={goHome}
@@ -4149,6 +4138,9 @@ export default function App() {
             />
           )}
 
+          {tab === "mas" && masSection === "calendario-mas" && (
+            <CalendarioEconomicoWrap themeName={themeName} onBack={goHome} />
+          )}
           {tab === "mas" && masSection === "soporte" && (
             <div className="max-w-md mx-auto">
               <div className="flex items-center gap-1.5 mb-4">
