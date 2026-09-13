@@ -77,11 +77,29 @@ const LIGHT = {
   grey: "#9AA3AF",
 };
 
+const MEDIO = {
+  bg: "#EAEBEE",
+  card: "#F6F6F7",
+  cardAlt: "#E4E5E8",
+  border: "#D6D8DC",
+  borderSoft: "#DEE0E3",
+  text: "#22242A",
+  textDim: "#72767E",
+  green: "#0F9D75",
+  greenSoft: "rgba(15,157,117,0.12)",
+  blue: "#2F6FE4",
+  blueSoft: "rgba(47,111,228,0.12)",
+  red: "#DC2626",
+  redSoft: "rgba(220,38,38,0.10)",
+  grey: "#9AA3AF",
+};
+
 const C = { ...DARK };
 
 function applyTheme(themeName) {
-  Object.assign(C, themeName === "light" ? LIGHT : DARK);
-  LOGO.src = `data:image/png;base64,${themeName === "light" ? LOGO_B64_LIGHT : LOGO_B64}`;
+  const palette = themeName === "light" ? LIGHT : themeName === "medio" ? MEDIO : DARK;
+  Object.assign(C, palette);
+  LOGO.src = `data:image/png;base64,${themeName === "dark" ? LOGO_B64 : LOGO_B64_LIGHT}`;
 }
 
 // ---------- Chart image uploaded by each admin (real screenshot) ----------
@@ -707,27 +725,28 @@ function CopySignalButton({ signal }) {
   );
 }
 
-function DetailView({ signal, onBack, risk, onEdit }) {
+function DetailView({ signal, onBack, risk, onEdit, isAdmin }) {
   const estadoInfo = ESTADO_STYLES[signal.estado] || { label: signal.estado, color: C.textDim };
 
   return (
     <div className="max-w-md mx-auto">
       <div className="flex items-center justify-between gap-3 mb-5">
-        <div className="flex items-center gap-3">
-          <button onClick={onBack} className="p-1 -ml-1">
-            <ArrowLeft size={22} color={C.text} />
-          </button>
-          <span className="text-[15px] font-semibold" style={{ color: C.text }}>Detalles de Operación #{signal.id}</span>
-        </div>
-        <button
-          onClick={onEdit}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
-          style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.border}`, color: C.text }}
-        >
-          <Pencil size={13} color={C.text} />
-          Editar
+        <button onClick={onBack} className="flex items-center gap-1.5">
+          <ArrowLeft size={20} color={C.text} />
+          <span className="text-sm font-medium" style={{ color: C.text }}>Volver</span>
         </button>
+        {isAdmin && (
+          <button
+            onClick={onEdit}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
+            style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.border}`, color: C.text }}
+          >
+            <Pencil size={13} color={C.text} />
+            Editar
+          </button>
+        )}
       </div>
+      <div className="text-[15px] font-semibold mb-4" style={{ color: C.text }}>Detalles de Operación #{signal.id}</div>
 
       <div className="flex items-start justify-between mb-1">
         <h1 className="text-3xl font-bold" style={{ color: C.text }}>{signal.par}</h1>
@@ -1902,7 +1921,58 @@ function TermsGate({ onAccept }) {
   );
 }
 
-function InicioDashboard({ signals, isAdmin, onOpenSignal, onNuevaSenal, onNavigate }) {
+const PLANES_PRO = [
+  { id: "x3", label: "PLAN X3", periodo: "3 meses / 90 días", precio: 60, diario: "0.66" },
+  { id: "x6", label: "PLAN X6", periodo: "6 meses / 180 días", precio: 100, diario: "0.55" },
+  { id: "x12", label: "PLAN X12", periodo: "12 meses / 365 días", precio: 120, diario: "0.33" },
+];
+
+function PlanesProView({ onBack }) {
+  const [selected, setSelected] = useState(null);
+  return (
+    <div className="max-w-md mx-auto">
+      <div className="flex items-center gap-1.5 mb-4">
+        <button onClick={onBack} className="flex items-center gap-1.5">
+          <ArrowLeft size={20} color={C.text} />
+          <span className="text-sm font-medium" style={{ color: C.text }}>Volver</span>
+        </button>
+      </div>
+      <div className="text-[11px] tracking-widest font-semibold mb-4 text-center" style={{ color: C.textDim }}>
+        DESBLOQUEÁ PRO
+      </div>
+      <div className="flex flex-col gap-3 mb-4">
+        {PLANES_PRO.map((p) => (
+          <button
+            key={p.id}
+            onClick={() => setSelected(p.id)}
+            className="rounded-2xl px-5 py-4 text-left"
+            style={{
+              backgroundColor: selected === p.id ? C.greenSoft : C.card,
+              border: `1px solid ${selected === p.id ? C.green : C.border}`,
+            }}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <span className="font-bold text-[15px]" style={{ color: C.text }}>{p.label}</span>
+              <span className="font-bold text-[18px]" style={{ color: C.green }}>${p.precio}</span>
+            </div>
+            <div className="text-xs" style={{ color: C.textDim }}>{p.periodo}</div>
+            <div className="text-xs mt-0.5" style={{ color: C.textDim }}>Equivale a ${p.diario} por día</div>
+          </button>
+        ))}
+      </div>
+      {selected && (
+        <div className="rounded-2xl p-5 text-center" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
+          <p className="text-sm" style={{ color: C.textDim }}>
+            Elegiste {PLANES_PRO.find((p) => p.id === selected)?.label}. El pago todavía no está conectado —
+            un admin te va a contactar para coordinarlo, o vas a poder subir tu comprobante de pago apenas esté listo.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function InicioDashboard({ signals, isAdmin, onOpenSignal, onNuevaSenal, onNavigate, onDesbloquearPro, profile }) {
   const ultimaActiva = signals?.find((s) => s.estado === "activa") || signals?.[0] || null;
   const [novedades, setNovedades] = useState([]);
 
@@ -1946,6 +2016,16 @@ function InicioDashboard({ signals, isAdmin, onOpenSignal, onNuevaSenal, onNavig
           </div>
         )}
       </div>
+
+      {!profile?.vitalicio && (
+        <button
+          onClick={onDesbloquearPro}
+          className="w-full rounded-2xl py-3.5 mb-3 text-sm font-bold tracking-wide"
+          style={{ backgroundColor: "#F0B429", color: "#08090B" }}
+        >
+          🔓 DESBLOQUEAR PRO
+        </button>
+      )}
 
       {isAdmin && (
         <button
@@ -2118,14 +2198,20 @@ const COMUNIDAD_PRODUCTOS_ITEMS = [
   { id: "planes-premium", label: "Planes premium" },
 ];
 
-function MasMenu({ onSelect }) {
+function MasMenu({ onSelect, onBack, isAdmin, pendingTotal }) {
+  const sections = isAdmin
+    ? [...MAS_SECTIONS, { id: "administracion", label: "Administración", icon: UserCog, badge: pendingTotal }]
+    : MAS_SECTIONS;
   return (
     <div className="max-w-md mx-auto">
-      <div className="text-[11px] tracking-widest font-semibold mb-4 text-center" style={{ color: C.textDim }}>
-        MÁS
+      <div className="flex items-center gap-3 mb-4">
+        <button onClick={onBack} className="p-1 -ml-1">
+          <ArrowLeft size={20} color={C.text} />
+        </button>
+        <span className="text-[15px] font-semibold" style={{ color: C.text }}>Más</span>
       </div>
       <div className="flex flex-col gap-3">
-        {MAS_SECTIONS.map((s) => {
+        {sections.map((s) => {
           const Icon = s.icon;
           return (
             <button
@@ -2137,6 +2223,14 @@ function MasMenu({ onSelect }) {
               <div className="flex items-center gap-3">
                 <Icon size={18} color={C.green} />
                 <span className="font-medium text-[14px]" style={{ color: C.text }}>{s.label}</span>
+                {s.badge > 0 && (
+                  <span
+                    className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                    style={{ backgroundColor: "#F0B429", color: "#08090B" }}
+                  >
+                    {s.badge}
+                  </span>
+                )}
               </div>
               <ArrowLeft size={16} color={C.textDim} style={{ transform: "rotate(180deg)" }} />
             </button>
@@ -2625,7 +2719,7 @@ function UsuariosView({ onBack, accessToken, onApproved }) {
   );
 }
 
-function ConfiguracionView({ onBack, themeName, onToggleTheme, nombre, setNombre, avatar, setAvatar, profile, onLogout, isAdmin, onOpenUsuarios }) {
+function ConfiguracionView({ onBack, themeName, onSetTheme, nombre, setNombre, avatar, setAvatar, profile, onLogout, isAdmin, onOpenUsuarios }) {
   const status = computeSubStatus(profile);
   const [showProofForm, setShowProofForm] = useState(false);
   const [proofSent, setProofSent] = useState(false);
@@ -2704,30 +2798,33 @@ function ConfiguracionView({ onBack, themeName, onToggleTheme, nombre, setNombre
         />
       </div>
 
-      <button
-        onClick={onToggleTheme}
-        className="w-full flex items-center justify-between rounded-2xl px-5 py-4 mb-3"
-        style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
-      >
-        <div className="flex items-center gap-2">
-          {themeName === "light" ? <Sun size={18} color={C.blue} /> : <Moon size={18} color={C.blue} />}
-          <span className="text-sm font-medium" style={{ color: C.text }}>
-            Modo {themeName === "light" ? "claro" : "oscuro"}
-          </span>
+      <div className="rounded-2xl px-5 py-4 mb-3" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
+        <span className="text-sm font-medium mb-3 block" style={{ color: C.text }}>
+          Modo de color
+        </span>
+        <div className="flex gap-2">
+          {[
+            { v: "dark", l: "Oscuro", icon: Moon },
+            { v: "medio", l: "Intermedio", icon: Sun },
+            { v: "light", l: "Claro", icon: Sun },
+          ].map((opt) => (
+            <button
+              key={opt.v}
+              onClick={() => onSetTheme(opt.v)}
+              className="flex-1 rounded-xl py-2.5 flex flex-col items-center gap-1"
+              style={{
+                backgroundColor: themeName === opt.v ? C.green : C.cardAlt,
+                border: `1px solid ${themeName === opt.v ? C.green : C.border}`,
+              }}
+            >
+              <opt.icon size={15} color={themeName === opt.v ? "#08090B" : C.textDim} />
+              <span className="text-[11px] font-medium" style={{ color: themeName === opt.v ? "#08090B" : C.textDim }}>
+                {opt.l}
+              </span>
+            </button>
+          ))}
         </div>
-        <div
-          className="w-11 h-6 rounded-full relative transition-colors"
-          style={{ backgroundColor: themeName === "light" ? C.border : C.green }}
-        >
-          <div
-            className="absolute top-0.5 w-5 h-5 rounded-full transition-transform"
-            style={{
-              backgroundColor: "#08090B",
-              transform: themeName === "light" ? "translateX(2px)" : "translateX(22px)",
-            }}
-          />
-        </div>
-      </button>
+      </div>
 
       {isAdmin && (
         <button
@@ -2866,16 +2963,16 @@ function ComunidadSubView({ onBack }) {
 }
 
 
-function TopBar({ nombre, avatar, isAdmin, adminPendingTotal, onOpenAdminAlerts, onOpenConfig }) {
+function TopBar({ nombre, avatar, isAdmin, adminPendingTotal, onOpenAdminAlerts, onOpenConfig, onLogoClick }) {
   const fecha = new Date().toLocaleDateString("es-AR", { day: "2-digit", month: "short" });
   return (
     <div
       className="sticky top-0 z-30 flex items-center justify-between gap-2 px-3 py-2"
       style={{ backgroundColor: C.card, borderBottom: `1px solid ${C.border}` }}
     >
-      <div className="flex items-center gap-2 shrink-0">
+      <button onClick={onLogoClick} className="flex items-center gap-2 shrink-0">
         <img src={LOGO.src} alt="Operación Trading" className="h-8 shrink-0" />
-        <div className="flex flex-col leading-none">
+        <div className="flex flex-col leading-none items-start">
           <span className="text-[12px] font-bold tracking-wide whitespace-nowrap" style={{ color: C.text }}>
             APP TRADER
           </span>
@@ -2883,7 +2980,7 @@ function TopBar({ nombre, avatar, isAdmin, adminPendingTotal, onOpenAdminAlerts,
             Todo en un solo lugar
           </span>
         </div>
-      </div>
+      </button>
 
       <div className="flex items-center gap-1.5 min-w-0">
         {isAdmin && (
@@ -2965,12 +3062,13 @@ export default function App() {
 
   const [session, setSession] = useState(null); // { accessToken, userId, profile }
   const [restoringSession, setRestoringSession] = useState(true);
-  const [tab, setTab] = useState("senales");
+  const [tab, setTab] = useState("home");
   const [brokerView, setBrokerView] = useState(null);
   const [herramientasView, setHerramientasView] = useState(null);
   const [masSection, setMasSection] = useState(null); // null | "formacion" | "comunidad-productos"
   const [formacionView, setFormacionView] = useState(null);
   const [comunidadProductosView, setComunidadProductosView] = useState(null);
+  const [adminPanelView, setAdminPanelView] = useState(null); // null | "usuarios" (más ítems admin se suman después)
   const [specialView, setSpecialView] = useState(null); // null | "config" | "usuarios"
   const [view, setView] = useState("list");
   const [selected, setSelected] = useState(null);
@@ -3048,6 +3146,7 @@ export default function App() {
     saveSessionToStorage(data.access_token, data.refresh_token, data.user.id);
     if (!profile || profile.aprobado === false) return; // queda bloqueado en PendingApprovalView
     if (profile?.es_admin) refreshPendingCount(data.access_token);
+    setTab("home");
   };
 
   const handleSignup = async (email, password, nombreCompleto, esComunidad, discordUsuario) => {
@@ -3067,13 +3166,14 @@ export default function App() {
   const handleLogout = () => {
     setSession(null);
     clearStoredSession();
-    setTab("senales");
+    setTab("home");
     setSpecialView(null);
     setBrokerView(null);
     setHerramientasView(null);
     setMasSection(null);
     setFormacionView(null);
     setComunidadProductosView(null);
+    setAdminPanelView(null);
   };
 
   const isAdmin = !!session?.profile?.es_admin;
@@ -3105,6 +3205,18 @@ export default function App() {
   });
 
   const stats = computeStats(filtered);
+
+  const goHome = () => {
+    setTab("home");
+    setView("list");
+    setBrokerView(null);
+    setHerramientasView(null);
+    setMasSection(null);
+    setFormacionView(null);
+    setComunidadProductosView(null);
+    setSpecialView(null);
+    setAdminPanelView(null);
+  };
 
   const openSignal = (sig) => {
     setSelected(sig);
@@ -3144,6 +3256,7 @@ export default function App() {
         adminPendingTotal={pendingCount + pendingComprobantesCount}
         onOpenAdminAlerts={() => setSpecialView("usuarios")}
         onOpenConfig={() => setSpecialView("config")}
+        onLogoClick={goHome}
       />
       <TickerTape themeName={themeName} />
       <div className="flex-1 px-4 py-6 pb-24">
@@ -3152,21 +3265,27 @@ export default function App() {
           <>
           {tab === "senales" && view === "list" && (
             <>
-              <div className="relative flex items-center justify-center mb-4">
-                <span
-                  className="text-[11px] tracking-widest font-semibold text-center"
-                  style={{ color: C.textDim }}
-                >
-                  SEÑALES
-                </span>
-                <button
-                  onClick={() => setShowAdminForm(true)}
-                  className="absolute right-0 w-9 h-9 rounded-full flex items-center justify-center"
-                  style={{ backgroundColor: C.green }}
-                  aria-label="Nueva señal"
-                >
-                  <Plus size={18} color="#08090B" />
+              <div className="flex items-center justify-between mb-4">
+                <button onClick={goHome} className="flex items-center gap-1.5">
+                  <ArrowLeft size={20} color={C.text} />
+                  <span className="text-sm font-medium" style={{ color: C.text }}>Volver</span>
                 </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => setShowAdminForm(true)}
+                    className="w-9 h-9 rounded-full flex items-center justify-center"
+                    style={{ backgroundColor: C.green }}
+                    aria-label="Nueva señal"
+                  >
+                    <Plus size={18} color="#08090B" />
+                  </button>
+                )}
+              </div>
+              <div
+                className="text-[11px] tracking-widest font-semibold text-center mb-4"
+                style={{ color: C.textDim }}
+              >
+                SEÑALES
               </div>
               {(() => {
                 const daysLeft = daysUntilVencimiento(session.profile);
@@ -3187,7 +3306,12 @@ export default function App() {
                   </div>
                 );
               })()}
-              <StatsHeader risk={risk} setRisk={setRisk} stats={stats} />
+              <div
+                className="rounded-xl px-4 py-3 mb-4 text-[11px] text-center"
+                style={{ backgroundColor: "rgba(247,100,100,0.10)", color: C.red, border: `1px solid ${C.red}66` }}
+              >
+                ⚠️ Las señales no son obligatorias — solo se comparten a título informativo. Cada usuario es responsable de decidir si las toma o no.
+              </div>
               <button
                 onClick={() => {
                   setTab("mas");
@@ -3200,7 +3324,7 @@ export default function App() {
                 SI NO SABÉS CÓMO COPIAR LA SEÑAL, HACÉ CLIC ACÁ Y MIRÁ EL TUTORIAL
               </button>
               <div className="flex gap-2 mb-4 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
-                {FILTERS.map((f) => (
+                {["Todas", "Activas", "Cerradas", ...Array.from(new Set(signals.map((s) => s.par))).sort()].map((f) => (
                   <button
                     key={f}
                     onClick={() => setFilter(f)}
@@ -3244,9 +3368,10 @@ export default function App() {
           {tab === "senales" && view === "detail" && (
             <DetailView
               signal={selected}
-              onBack={() => setView("list")}
+              onBack={goHome}
               risk={risk}
               onEdit={() => setEditingSignal(selected)}
+              isAdmin={isAdmin}
             />
           )}
 
@@ -3254,8 +3379,10 @@ export default function App() {
             <InicioDashboard
               signals={signals}
               isAdmin={isAdmin}
+              profile={session.profile}
               onOpenSignal={openSignal}
               onNuevaSenal={() => setShowAdminForm(true)}
+              onDesbloquearPro={() => setSpecialView("planes")}
               onNavigate={(t, extra) => {
                 setTab(t);
                 if (extra?.herramientasView) setHerramientasView(extra.herramientasView);
@@ -3265,47 +3392,96 @@ export default function App() {
           )}
 
           {tab === "broker" && brokerView === null && (
-            <PillarMenu title="Broker" items={BROKER_ITEMS} onSelect={setBrokerView} />
+            <PillarMenu title="Broker" items={BROKER_ITEMS} onSelect={setBrokerView} onBack={goHome} />
           )}
           {tab === "broker" && brokerView && (
             <PillarComingSoon
               label={BROKER_ITEMS.find((i) => i.id === brokerView)?.label}
-              onBack={() => setBrokerView(null)}
+              onBack={goHome}
             />
           )}
 
           {tab === "herramientas" && herramientasView === null && (
-            <PillarMenu title="Herramientas" items={HERRAMIENTAS_ITEMS} onSelect={setHerramientasView} />
+            <PillarMenu title="Herramientas" items={HERRAMIENTAS_ITEMS} onSelect={setHerramientasView} onBack={goHome} />
           )}
           {tab === "herramientas" && herramientasView === "calendario" && (
-            <CalendarioEconomicoWrap themeName={themeName} onBack={() => setHerramientasView(null)} />
+            <CalendarioEconomicoWrap themeName={themeName} onBack={goHome} />
           )}
           {tab === "herramientas" && herramientasView === "calculadoras" && (
             <PillarExternal
               label="Calculadoras"
               url="https://www.myfxbook.com/forex-calculators"
-              onBack={() => setHerramientasView(null)}
+              onBack={goHome}
             />
           )}
           {tab === "herramientas" && herramientasView && !["calendario", "calculadoras"].includes(herramientasView) && (
             <PillarComingSoon
               label={HERRAMIENTAS_ITEMS.find((i) => i.id === herramientasView)?.label}
-              onBack={() => setHerramientasView(null)}
+              onBack={goHome}
             />
           )}
 
-          {tab === "mas" && masSection === null && <MasMenu onSelect={setMasSection} />}
+          {tab === "mas" && masSection === null && (
+            <MasMenu
+              onSelect={setMasSection}
+              onBack={goHome}
+              isAdmin={isAdmin}
+              pendingTotal={pendingCount + pendingComprobantesCount}
+            />
+          )}
+
+          {tab === "mas" && masSection === "administracion" && isAdmin && adminPanelView === null && (
+            <div className="max-w-md mx-auto">
+              <div className="flex items-center gap-3 mb-4">
+                <button onClick={() => setMasSection(null)} className="p-1 -ml-1">
+                  <ArrowLeft size={20} color={C.text} />
+                </button>
+                <span className="text-[15px] font-semibold" style={{ color: C.text }}>Administración</span>
+              </div>
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={() => setAdminPanelView("usuarios")}
+                  className="flex items-center justify-between rounded-2xl px-5 py-4"
+                  style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
+                >
+                  <div className="flex items-center gap-3">
+                    <UserCog size={18} color={C.green} />
+                    <span className="font-medium text-[14px]" style={{ color: C.text }}>Usuarios y suscripciones</span>
+                    {pendingCount + pendingComprobantesCount > 0 && (
+                      <span
+                        className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                        style={{ backgroundColor: "#F0B429", color: "#08090B" }}
+                      >
+                        {pendingCount + pendingComprobantesCount}
+                      </span>
+                    )}
+                  </div>
+                  <ArrowLeft size={16} color={C.textDim} style={{ transform: "rotate(180deg)" }} />
+                </button>
+              </div>
+              <p className="text-[11px] text-center mt-4" style={{ color: C.textDim }}>
+                Vamos a sumar más paneles administrativos acá a medida que los definamos.
+              </p>
+            </div>
+          )}
+          {tab === "mas" && masSection === "administracion" && isAdmin && adminPanelView === "usuarios" && (
+            <UsuariosView
+              onBack={() => setAdminPanelView(null)}
+              accessToken={session.accessToken}
+              onApproved={() => refreshPendingCount(session.accessToken)}
+            />
+          )}
 
           {tab === "mas" && masSection === "formacion" && formacionView === null && (
-            <PillarMenu title="Formación" items={ACADEMIA_ITEMS} onSelect={setFormacionView} onBack={() => setMasSection(null)} />
+            <PillarMenu title="Formación" items={ACADEMIA_ITEMS} onSelect={setFormacionView} onBack={goHome} />
           )}
           {tab === "mas" && masSection === "formacion" && formacionView === "videos" && (
-            <ClasesGrabadasView onBack={() => setFormacionView(null)} />
+            <ClasesGrabadasView onBack={goHome} />
           )}
           {tab === "mas" && masSection === "formacion" && formacionView && formacionView !== "videos" && (
             <PillarComingSoon
               label={ACADEMIA_ITEMS.find((i) => i.id === formacionView)?.label}
-              onBack={() => setFormacionView(null)}
+              onBack={goHome}
             />
           )}
 
@@ -3314,17 +3490,17 @@ export default function App() {
               title="Comunidad y Productos"
               items={COMUNIDAD_PRODUCTOS_ITEMS}
               onSelect={setComunidadProductosView}
-              onBack={() => setMasSection(null)}
+              onBack={goHome}
             />
           )}
           {tab === "mas" && masSection === "comunidad-productos" && comunidadProductosView === "discord" && (
-            <ComunidadSubView onBack={() => setComunidadProductosView(null)} />
+            <ComunidadSubView onBack={goHome} />
           )}
           {tab === "mas" && masSection === "comunidad-productos" && comunidadProductosView === "noticias-internas" && (
-            <NovedadesSubView onBack={() => setComunidadProductosView(null)} isAdmin={isAdmin} />
+            <NovedadesSubView onBack={goHome} isAdmin={isAdmin} />
           )}
           {tab === "mas" && masSection === "comunidad-productos" && comunidadProductosView === "bonos" && (
-            <BonosView onBack={() => setComunidadProductosView(null)} />
+            <BonosView onBack={goHome} />
           )}
           {tab === "mas" &&
             masSection === "comunidad-productos" &&
@@ -3332,7 +3508,7 @@ export default function App() {
             !["discord", "noticias-internas", "bonos"].includes(comunidadProductosView) && (
               <PillarComingSoon
                 label={COMUNIDAD_PRODUCTOS_ITEMS.find((i) => i.id === comunidadProductosView)?.label}
-                onBack={() => setComunidadProductosView(null)}
+                onBack={goHome}
               />
             )}
 
@@ -3341,16 +3517,17 @@ export default function App() {
 
           {specialView === "usuarios" && isAdmin && (
             <UsuariosView
-              onBack={() => setSpecialView(null)}
+              onBack={goHome}
               accessToken={session.accessToken}
               onApproved={() => refreshPendingCount(session.accessToken)}
             />
           )}
+          {specialView === "planes" && <PlanesProView onBack={goHome} />}
           {specialView === "config" && (
             <ConfiguracionView
-              onBack={() => setSpecialView(null)}
+              onBack={goHome}
               themeName={themeName}
-              onToggleTheme={() => setThemeName(themeName === "light" ? "dark" : "light")}
+              onSetTheme={setThemeName}
               nombre={nombre}
               setNombre={setNombre}
               avatar={avatar}
@@ -3407,6 +3584,7 @@ export default function App() {
                   setMasSection(null);
                   setFormacionView(null);
                   setComunidadProductosView(null);
+                  setAdminPanelView(null);
                 }
               }}
               className="flex flex-col items-center gap-0.5 px-1 py-1 flex-1 min-w-0"
