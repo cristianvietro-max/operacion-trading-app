@@ -29,6 +29,7 @@ import {
   LogOut,
   UserCog,
   Lock,
+  MessageCircle,
   Landmark,
   Wrench,
   GraduationCap,
@@ -2320,7 +2321,9 @@ const TABS = [
 
 const MAS_SECTIONS = [
   { id: "formacion", label: "Formación", icon: GraduationCap },
-  { id: "comunidad-productos", label: "Comunidad y Productos", icon: Users },
+  { id: "comunidad", label: "Comunidad Operación Trading", icon: Users },
+  { id: "tienda", label: "Tienda", icon: ShoppingBag },
+  { id: "soporte", label: "Soporte", icon: MessageCircle },
 ];
 
 const BROKER_ITEMS = [
@@ -2356,7 +2359,7 @@ const ACADEMIA_ITEMS = [
   { id: "psicotrading", label: "Psicotrading" },
 ];
 
-const COMUNIDAD_PRODUCTOS_ITEMS = [
+const COMUNIDAD_ITEMS = [
   { id: "discord", label: "Discord y traders", real: true },
   { id: "clases-vivo", label: "Clases en vivo" },
   { id: "calendario-clases", label: "Calendario de clases" },
@@ -2364,12 +2367,14 @@ const COMUNIDAD_PRODUCTOS_ITEMS = [
   { id: "desafios", label: "Desafíos" },
   { id: "noticias-internas", label: "Noticias internas", real: true },
   { id: "resultados", label: "Resultados de alumnos" },
-  { id: "soporte-com", label: "Soporte", real: true },
   { id: "faq-com", label: "Preguntas frecuentes" },
   { id: "contacto", label: "Contacto" },
+];
+
+const TIENDA_ITEMS = [
   { id: "mentorias", label: "Mentorías privadas" },
   { id: "suscripciones-tienda", label: "Suscripciones" },
-  { id: "cursos-tienda", label: "Cursos (tienda)" },
+  { id: "cursos-tienda", label: "Cursos" },
   { id: "programas", label: "Programas intensivos" },
   { id: "clases-especiales", label: "Clases especiales" },
   { id: "indicadores", label: "Indicadores" },
@@ -3397,7 +3402,8 @@ export default function App() {
   const [herramientasView, setHerramientasView] = useState(null);
   const [masSection, setMasSection] = useState(null); // null | "formacion" | "comunidad-productos"
   const [formacionView, setFormacionView] = useState(null);
-  const [comunidadProductosView, setComunidadProductosView] = useState(null);
+  const [comunidadView, setComunidadView] = useState(null);
+  const [tiendaView, setTiendaView] = useState(null);
   const [adminPanelView, setAdminPanelView] = useState(null); // null | "usuarios" (más ítems admin se suman después)
   const [specialView, setSpecialView] = useState(null); // null | "config" | "usuarios"
   const [view, setView] = useState("list");
@@ -3508,7 +3514,8 @@ export default function App() {
     setHerramientasView(null);
     setMasSection(null);
     setFormacionView(null);
-    setComunidadProductosView(null);
+    setComunidadView(null);
+    setTiendaView(null);
     setAdminPanelView(null);
     setPersonalDataDismissed(false);
   };
@@ -3551,7 +3558,8 @@ export default function App() {
     setHerramientasView(null);
     setMasSection(null);
     setFormacionView(null);
-    setComunidadProductosView(null);
+    setComunidadView(null);
+    setTiendaView(null);
     setSpecialView(null);
     setAdminPanelView(null);
   };
@@ -3829,24 +3837,44 @@ export default function App() {
             />
           )}
 
-          {tab === "mas" && masSection === "comunidad-productos" && comunidadProductosView === null && (
+          {tab === "mas" && masSection === "comunidad" && comunidadView === null && (
             <PillarMenu
-              title="Comunidad y Productos"
-              items={COMUNIDAD_PRODUCTOS_ITEMS}
-              onSelect={setComunidadProductosView}
+              title="Comunidad Operación Trading"
+              items={COMUNIDAD_ITEMS}
+              onSelect={setComunidadView}
               onBack={goHome}
             />
           )}
-          {tab === "mas" && masSection === "comunidad-productos" && comunidadProductosView === "discord" && (
+          {tab === "mas" && masSection === "comunidad" && comunidadView === "discord" && (
             <ComunidadSubView onBack={goHome} />
           )}
-          {tab === "mas" && masSection === "comunidad-productos" && comunidadProductosView === "noticias-internas" && (
+          {tab === "mas" && masSection === "comunidad" && comunidadView === "noticias-internas" && (
             <NovedadesSubView onBack={goHome} isAdmin={isAdmin} />
           )}
-          {tab === "mas" && masSection === "comunidad-productos" && comunidadProductosView === "bonos" && (
+          {tab === "mas" &&
+            masSection === "comunidad" &&
+            comunidadView &&
+            !["discord", "noticias-internas"].includes(comunidadView) && (
+              <PillarComingSoon
+                label={COMUNIDAD_ITEMS.find((i) => i.id === comunidadView)?.label}
+                onBack={goHome}
+              />
+            )}
+
+          {tab === "mas" && masSection === "tienda" && tiendaView === null && (
+            <PillarMenu title="Tienda" items={TIENDA_ITEMS} onSelect={setTiendaView} onBack={goHome} />
+          )}
+          {tab === "mas" && masSection === "tienda" && tiendaView === "bonos" && (
             <BonosView onBack={goHome} />
           )}
-          {tab === "mas" && masSection === "comunidad-productos" && comunidadProductosView === "soporte-com" && (
+          {tab === "mas" && masSection === "tienda" && tiendaView && tiendaView !== "bonos" && (
+            <PillarComingSoon
+              label={TIENDA_ITEMS.find((i) => i.id === tiendaView)?.label}
+              onBack={goHome}
+            />
+          )}
+
+          {tab === "mas" && masSection === "soporte" && (
             <div className="max-w-md mx-auto">
               <div className="flex items-center gap-1.5 mb-4">
                 <button onClick={goHome} className="flex items-center gap-1.5">
@@ -3873,15 +3901,6 @@ export default function App() {
               </div>
             </div>
           )}
-          {tab === "mas" &&
-            masSection === "comunidad-productos" &&
-            comunidadProductosView &&
-            !["discord", "noticias-internas", "bonos", "soporte-com"].includes(comunidadProductosView) && (
-              <PillarComingSoon
-                label={COMUNIDAD_PRODUCTOS_ITEMS.find((i) => i.id === comunidadProductosView)?.label}
-                onBack={goHome}
-              />
-            )}
 
           </>
           )}
@@ -3966,7 +3985,8 @@ export default function App() {
                 if (t.id === "mas") {
                   setMasSection(null);
                   setFormacionView(null);
-                  setComunidadProductosView(null);
+                  setComunidadView(null);
+    setTiendaView(null);
                   setAdminPanelView(null);
                 }
               }}
