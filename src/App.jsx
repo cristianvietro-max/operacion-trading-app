@@ -190,6 +190,22 @@ async function createProfileRow(userId, payload) {
   return res.json();
 }
 
+async function uploadAvatar(file) {
+  const ext = file.name.split(".").pop() || "jpg";
+  const filename = `${Date.now()}-${Math.round(Math.random() * 1e6)}.${ext}`;
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/avatares/${filename}`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      "Content-Type": file.type || "application/octet-stream",
+    },
+    body: file,
+  });
+  if (!res.ok) throw new Error("No se pudo subir la foto");
+  return `${SUPABASE_URL}/storage/v1/object/public/avatares/${filename}`;
+}
+
 async function uploadPaymentProof(file) {
   const ext = file.name.split(".").pop() || "jpg";
   const filename = `${Date.now()}-${Math.round(Math.random() * 1e6)}.${ext}`;
@@ -1901,6 +1917,109 @@ function SubscriptionExpiredView({ userId, accessToken, onLogout }) {
   );
 }
 
+function PersonalDataPopup({ profile, accessToken, onClose, onSaved }) {
+  const [nombre, setNombreLocal] = useState(profile?.nombre || "");
+  const [telefono, setTelefono] = useState(profile?.telefono || "");
+  const [discordUsuario, setDiscordUsuario] = useState(profile?.discord_usuario || "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const inputStyle = { backgroundColor: C.cardAlt, color: C.text, border: `1px solid ${C.border}` };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      await updateProfile(
+        profile.id,
+        { nombre: nombre.trim(), telefono: telefono.trim(), discord_usuario: discordUsuario.trim() || null },
+        accessToken
+      );
+      onSaved(nombre.trim());
+      onClose();
+    } catch (err) {
+      setError(err.message || "No se pudo guardar");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center"
+      style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
+    >
+      <div
+        className="rounded-t-3xl w-full max-w-md p-6"
+        style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderBottom: "none" }}
+      >
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[15px] font-semibold" style={{ color: C.text }}>Actualizá tus datos</span>
+          <button onClick={onClose}>
+            <X size={20} color={C.textDim} />
+          </button>
+        </div>
+        <p className="text-xs mb-4" style={{ color: C.textDim }}>
+          Nos ayuda a contactarte si hace falta. Podés completarlo ahora o más tarde desde Configuración.
+        </p>
+
+        <div className="mb-3">
+          <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>NOMBRE COMPLETO</label>
+          <input
+            value={nombre}
+            onChange={(e) => setNombreLocal(e.target.value)}
+            className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
+            style={inputStyle}
+          />
+        </div>
+        <div className="mb-3">
+          <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>TELÉFONO</label>
+          <input
+            value={telefono}
+            onChange={(e) => setTelefono(e.target.value)}
+            placeholder="+54 9 11 1234-5678"
+            className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
+            style={inputStyle}
+          />
+        </div>
+        <div className="mb-3">
+          <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>EMAIL</label>
+          <input
+            value={profile?.email || ""}
+            disabled
+            className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none opacity-60"
+            style={inputStyle}
+          />
+        </div>
+        <div className="mb-4">
+          <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>USUARIO DE DISCORD (opcional)</label>
+          <input
+            value={discordUsuario}
+            onChange={(e) => setDiscordUsuario(e.target.value)}
+            placeholder="tu_usuario"
+            className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
+            style={inputStyle}
+          />
+        </div>
+
+        {error && <p className="text-sm text-center mb-3" style={{ color: C.red }}>{error}</p>}
+
+        <button
+          onClick={handleSave}
+          disabled={saving || !nombre.trim()}
+          className="w-full rounded-2xl py-4 text-[15px] font-semibold mb-2"
+          style={{ backgroundColor: C.green, color: "#08090B" }}
+        >
+          {saving ? "Guardando..." : "Guardar"}
+        </button>
+        <button onClick={onClose} className="w-full text-center text-xs py-2" style={{ color: C.textDim }}>
+          Recordarme más tarde
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function PendingApprovalView({ onLogout }) {
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center px-6 text-center" style={{ backgroundColor: C.bg }}>
@@ -2013,11 +2132,11 @@ function PlanesProView({ onBack }) {
             </div>
             <div className="flex items-end justify-between">
               <div>
-                <span className="text-2xl font-bold" style={{ color: C.green }}>${p.diario}</span>
-                <span className="text-xs ml-1" style={{ color: C.textDim }}>USD/USDT por día</span>
+                <span className="text-2xl font-bold" style={{ color: C.green }}>${p.precio}</span>
+                <span className="text-xs ml-1" style={{ color: C.textDim }}>USD/USDT</span>
               </div>
               <div className="text-right">
-                <div className="font-semibold text-[15px]" style={{ color: C.text }}>${p.precio} USD/USDT</div>
+                <div className="font-semibold text-[15px]" style={{ color: C.text }}>${p.diario} USD/USDT por día</div>
                 <div className="text-xs" style={{ color: C.textDim }}>{p.periodo}</div>
               </div>
             </div>
@@ -2245,7 +2364,7 @@ const COMUNIDAD_PRODUCTOS_ITEMS = [
   { id: "desafios", label: "Desafíos" },
   { id: "noticias-internas", label: "Noticias internas", real: true },
   { id: "resultados", label: "Resultados de alumnos" },
-  { id: "soporte-com", label: "Soporte" },
+  { id: "soporte-com", label: "Soporte", real: true },
   { id: "faq-com", label: "Preguntas frecuentes" },
   { id: "contacto", label: "Contacto" },
   { id: "mentorias", label: "Mentorías privadas" },
@@ -2812,6 +2931,13 @@ function ConfiguracionView({ onBack, themeName, onSetTheme, nombre, setNombre, a
   const [showProofForm, setShowProofForm] = useState(false);
   const [proofSent, setProofSent] = useState(false);
   const [showHistorial, setShowHistorial] = useState(false);
+  const [showTermsPage, setShowTermsPage] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarError, setAvatarError] = useState(null);
+
+  if (showTermsPage) {
+    return <TermsPageView onBack={() => setShowTermsPage(false)} />;
+  }
 
   return (
     <div className="max-w-md mx-auto">
@@ -2838,9 +2964,21 @@ function ConfiguracionView({ onBack, themeName, onSetTheme, nombre, setNombre, a
             type="file"
             accept="image/*"
             className="hidden"
-            onChange={(e) => {
+            onChange={async (e) => {
               const f = e.target.files?.[0];
-              if (f) setAvatar(URL.createObjectURL(f));
+              if (!f || !profile) return;
+              const previewUrl = URL.createObjectURL(f);
+              setAvatar(previewUrl);
+              setUploadingAvatar(true);
+              try {
+                const url = await uploadAvatar(f);
+                await updateProfile(profile.id, { avatar_url: url }, accessToken);
+                setAvatar(url);
+              } catch (err) {
+                setAvatarError("No se pudo guardar la foto, probá de nuevo");
+              } finally {
+                setUploadingAvatar(false);
+              }
             }}
           />
           <div
@@ -2850,7 +2988,10 @@ function ConfiguracionView({ onBack, themeName, onSetTheme, nombre, setNombre, a
             <Camera size={13} color="#08090B" />
           </div>
         </label>
-        <span className="text-xs mt-2" style={{ color: C.textDim }}>Foto de perfil</span>
+        <span className="text-xs mt-2" style={{ color: C.textDim }}>
+          {uploadingAvatar ? "Guardando foto..." : "Foto de perfil"}
+        </span>
+        {avatarError && <span className="text-[11px] mt-1" style={{ color: C.red }}>{avatarError}</span>}
       </div>
 
       {profile && (
@@ -2932,6 +3073,15 @@ function ConfiguracionView({ onBack, themeName, onSetTheme, nombre, setNombre, a
           Usuarios (admin)
         </button>
       )}
+
+      <button
+        onClick={() => setShowTermsPage(true)}
+        className="w-full flex items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-semibold mb-3"
+        style={{ backgroundColor: C.cardAlt, color: C.text, border: `1px solid ${C.border}` }}
+      >
+        <ShieldAlert size={16} />
+        Volver a leer Términos y Condiciones
+      </button>
 
       <button
         onClick={onLogout}
@@ -3240,6 +3390,8 @@ export default function App() {
 
   const [session, setSession] = useState(null); // { accessToken, userId, profile }
   const [restoringSession, setRestoringSession] = useState(true);
+  const [showPersonalDataPopup, setShowPersonalDataPopup] = useState(false);
+  const [personalDataDismissed, setPersonalDataDismissed] = useState(false);
   const [tab, setTab] = useState("home");
   const [brokerView, setBrokerView] = useState(null);
   const [herramientasView, setHerramientasView] = useState(null);
@@ -3283,7 +3435,7 @@ export default function App() {
       try {
         const profile = await fetchProfile(stored.userId, stored.accessToken);
         setSession({ accessToken: stored.accessToken, userId: stored.userId, profile });
-        setNombre(profile?.nombre || "");
+        setNombre(profile?.nombre || ""); setAvatar(profile?.avatar_url || null);
         if (profile?.es_admin) refreshPendingCount(stored.accessToken);
       } catch (err) {
         try {
@@ -3291,7 +3443,7 @@ export default function App() {
           const profile = await fetchProfile(data.user.id, data.access_token);
           saveSessionToStorage(data.access_token, data.refresh_token, data.user.id);
           setSession({ accessToken: data.access_token, userId: data.user.id, profile });
-          setNombre(profile?.nombre || "");
+          setNombre(profile?.nombre || ""); setAvatar(profile?.avatar_url || null);
           if (profile?.es_admin) refreshPendingCount(data.access_token);
         } catch (err2) {
           clearStoredSession();
@@ -3323,7 +3475,7 @@ export default function App() {
       }
     }
     setSession({ accessToken: data.access_token, userId: data.user.id, profile });
-    setNombre(profile?.nombre || "");
+    setNombre(profile?.nombre || ""); setAvatar(profile?.avatar_url || null);
     saveSessionToStorage(data.access_token, data.refresh_token, data.user.id);
     if (!profile || profile.aprobado === false) return; // queda bloqueado en PendingApprovalView
     if (profile?.es_admin) refreshPendingCount(data.access_token);
@@ -3358,6 +3510,7 @@ export default function App() {
     setFormacionView(null);
     setComunidadProductosView(null);
     setAdminPanelView(null);
+    setPersonalDataDismissed(false);
   };
 
   const isAdmin = !!session?.profile?.es_admin;
@@ -3431,6 +3584,12 @@ export default function App() {
       />
     );
   }
+
+  const needsPersonalData =
+    !isAdmin &&
+    session.profile &&
+    (!session.profile.nombre?.trim() || !session.profile.telefono?.trim()) &&
+    !personalDataDismissed;
 
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: C.bg }}>
@@ -3687,10 +3846,37 @@ export default function App() {
           {tab === "mas" && masSection === "comunidad-productos" && comunidadProductosView === "bonos" && (
             <BonosView onBack={goHome} />
           )}
+          {tab === "mas" && masSection === "comunidad-productos" && comunidadProductosView === "soporte-com" && (
+            <div className="max-w-md mx-auto">
+              <div className="flex items-center gap-1.5 mb-4">
+                <button onClick={goHome} className="flex items-center gap-1.5">
+                  <ArrowLeft size={20} color={C.text} />
+                  <span className="text-sm font-medium" style={{ color: C.text }}>Volver</span>
+                </button>
+              </div>
+              <div className="text-[11px] tracking-widest font-semibold mb-4 text-center" style={{ color: C.textDim }}>
+                SOPORTE
+              </div>
+              <div className="rounded-2xl p-6 text-center" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
+                <p className="text-sm mb-4" style={{ color: C.textDim }}>
+                  ¿Tenés una duda o un problema con la app? Escribinos directo por WhatsApp.
+                </p>
+                <a
+                  href="https://wa.me/59175800153"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold"
+                  style={{ backgroundColor: "#25D366", color: "#08090B" }}
+                >
+                  💬 Contactar por WhatsApp
+                </a>
+              </div>
+            </div>
+          )}
           {tab === "mas" &&
             masSection === "comunidad-productos" &&
             comunidadProductosView &&
-            !["discord", "noticias-internas", "bonos"].includes(comunidadProductosView) && (
+            !["discord", "noticias-internas", "bonos", "soporte-com"].includes(comunidadProductosView) && (
               <PillarComingSoon
                 label={COMUNIDAD_PRODUCTOS_ITEMS.find((i) => i.id === comunidadProductosView)?.label}
                 onBack={goHome}
@@ -3735,6 +3921,17 @@ export default function App() {
           existingSignal={editingSignal}
           onClose={() => setEditingSignal(null)}
           onCreated={loadSignals}
+        />
+      )}
+      {needsPersonalData && (
+        <PersonalDataPopup
+          profile={session.profile}
+          accessToken={session.accessToken}
+          onClose={() => setPersonalDataDismissed(true)}
+          onSaved={(nuevoNombre) => {
+            setNombre(nuevoNombre);
+            setSession((s) => ({ ...s, profile: { ...s.profile, nombre: nuevoNombre } }));
+          }}
         />
       )}
 
