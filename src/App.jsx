@@ -30,6 +30,8 @@ import {
   UserCog,
   Lock,
   MessageCircle,
+  ThumbsUp,
+  ThumbsDown,
   Landmark,
   Wrench,
   GraduationCap,
@@ -188,6 +190,60 @@ async function createProfileRow(userId, payload) {
     body: JSON.stringify({ id: userId, ...payload }),
   });
   if (!res.ok) throw new Error("No se pudo crear el perfil");
+  return res.json();
+}
+
+async function uploadFlyerImage(file) {
+  const ext = file.name.split(".").pop() || "jpg";
+  const filename = `${Date.now()}-${Math.round(Math.random() * 1e6)}.${ext}`;
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/flyers/${filename}`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      "Content-Type": file.type || "application/octet-stream",
+    },
+    body: file,
+  });
+  if (!res.ok) throw new Error("No se pudo subir el flyer");
+  return `${SUPABASE_URL}/storage/v1/object/public/flyers/${filename}`;
+}
+
+async function fetchActiveFlyer() {
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/flyers?activo=eq.true&select=*&order=created_at.desc&limit=1`,
+    { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
+  );
+  if (!res.ok) return null;
+  const rows = await res.json();
+  return rows[0] || null;
+}
+
+async function deactivateAllFlyers(accessToken) {
+  await fetch(`${SUPABASE_URL}/rest/v1/flyers?activo=eq.true`, {
+    method: "PATCH",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ activo: false }),
+  }).catch(() => {});
+}
+
+async function createFlyer(imagenUrl, enlace, accessToken) {
+  await deactivateAllFlyers(accessToken);
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/flyers`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      Prefer: "return=representation",
+    },
+    body: JSON.stringify({ imagen_url: imagenUrl, enlace: enlace || null, activo: true }),
+  });
+  if (!res.ok) throw new Error("No se pudo crear el flyer");
   return res.json();
 }
 
@@ -562,13 +618,58 @@ function CopyField({ label, value, formatted, color }) {
   );
 }
 
-function SignalCard({ signal, onOpen }) {
+function SignalCard({ signal, onOpen, compact }) {
   const estado = ESTADO_STYLES[signal.estado];
+  const borderColor = signal.estado === "pendiente" ? "#F0B429" : C.border;
+
+  if (compact) {
+    return (
+      <button
+        onClick={() => onOpen(signal)}
+        className="text-left rounded-2xl overflow-hidden transition-shadow"
+        style={{ backgroundColor: C.card, border: `1px solid ${borderColor}` }}
+      >
+        <div className="px-3 pt-2.5 pb-2" style={{ backgroundColor: C.cardAlt, borderBottom: `1px solid ${C.borderSoft}` }}>
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="font-semibold text-[13px]" style={{ color: C.text }}>{signal.par}</span>
+            <span className="text-[10px] font-bold" style={{ color: signal.direccion === "venta" ? C.red : C.green }}>
+              {signal.direccion === "venta" ? "VENTA" : "COMPRA"}
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
+            {signal.estado === "ganada" && (
+              <>
+                <ThumbsUp size={13} color={C.green} />
+                <span className="text-[10px] font-medium" style={{ color: C.green }}>Ganada</span>
+              </>
+            )}
+            {signal.estado === "perdida" && (
+              <>
+                <ThumbsDown size={13} color={C.red} />
+                <span className="text-[10px] font-medium" style={{ color: C.red }}>Perdida</span>
+              </>
+            )}
+            {signal.estado !== "ganada" && signal.estado !== "perdida" && (
+              <span className="text-[10px] font-medium" style={{ color: estado.color }}>{estado.label}</span>
+            )}
+          </div>
+        </div>
+        <div className="px-2 pt-2">
+          <ChartImage imagenUrl={signal.imagenUrl} height={72} />
+        </div>
+        <div className="px-3 pt-1.5 pb-2.5">
+          <div className="text-[10px]" style={{ color: C.textDim }}>Operación #{signal.id}</div>
+          <div className="text-[10px] truncate" style={{ color: C.textDim }}>{signal.autor}</div>
+        </div>
+      </button>
+    );
+  }
+
   return (
     <button
       onClick={() => onOpen(signal)}
       className="w-full text-left rounded-2xl overflow-hidden transition-shadow"
-      style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
+      style={{ backgroundColor: C.card, border: `1px solid ${borderColor}` }}
     >
       <div className="px-5 py-3 flex items-center justify-between" style={{ backgroundColor: C.cardAlt, borderBottom: `1px solid ${C.borderSoft}` }}>
         <div>
@@ -581,7 +682,11 @@ function SignalCard({ signal, onOpen }) {
           <div className="text-[13px] font-semibold" style={{ color: signal.direccion === "venta" ? C.red : C.green }}>
             {signal.direccion === "venta" ? "VENTA" : "COMPRA"}
           </div>
-          <div className="text-xs mt-0.5" style={{ color: estado.color }}>{estado.label}</div>
+          <div className="text-xs mt-0.5 flex items-center justify-end gap-1" style={{ color: estado.color }}>
+            {signal.estado === "ganada" && <ThumbsUp size={12} color={C.green} />}
+            {signal.estado === "perdida" && <ThumbsDown size={12} color={C.red} />}
+            {signal.estado !== "ganada" && signal.estado !== "perdida" ? estado.label : (signal.estado === "ganada" ? "Ganada" : "Perdida")}
+          </div>
         </div>
       </div>
       <div className="px-2 pt-2 pb-1" style={{ backgroundColor: C.card }}>
@@ -797,32 +902,18 @@ function DetailView({ signal, onBack, risk, onEdit, isAdmin }) {
       </div>
 
       <div className="flex gap-3 mb-3">
+        <div className="flex-1 rounded-2xl px-4 py-4" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
+          <div className="text-[11px] tracking-wide font-medium mb-1" style={{ color: C.textDim }}>TIPO DE ORDEN</div>
+          <div className="text-lg font-semibold" style={{ color: C.text }}>{signal.tipoOrden}</div>
+        </div>
         <CopyField label="PRECIO ENTRADA" value={signal.entrada} formatted={formatPrice(signal.entrada)} />
+      </div>
+      <div className="flex gap-3 mb-5">
         <CopyField label="STOP LOSS" value={signal.sl} formatted={formatPrice(signal.sl)} color={C.red} />
-      </div>
-      <div className="flex gap-3 mb-3">
         <CopyField label="TAKE PROFIT" value={signal.tp} formatted={formatPrice(signal.tp)} color={C.green} />
-        <a
-          href="https://www.myfxbook.com/forex-calculators/position-size"
-          target="_blank"
-          rel="noreferrer"
-          className="flex-1 rounded-2xl px-4 py-4 text-left transition-colors flex flex-col items-center justify-center"
-          style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
-        >
-          <Calculator size={18} color={C.blue} className="mb-1" />
-          <span className="text-sm font-medium text-center" style={{ color: C.text }}>Calculadora de lotaje</span>
-        </a>
-      </div>
-      <p className="text-[11px] text-center mb-3 px-2" style={{ color: C.textDim }}>
-        Te llevamos a una calculadora externa (myfxbook) que usa el precio y el instrumento real — así el lotaje sugerido es correcto para tu cuenta y bróker.
-      </p>
-
-      <div className="rounded-2xl px-5 py-4 flex items-center justify-between mb-3" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
-        <span className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>TIPO DE ORDEN</span>
-        <span className="text-[15px] font-semibold" style={{ color: C.text }}>{signal.tipoOrden}</span>
       </div>
 
-      <CopySignalButton signal={signal} />
+      {isAdmin && <CopySignalButton signal={signal} />}
     </div>
   );
 }
@@ -2021,6 +2112,167 @@ function PersonalDataPopup({ profile, accessToken, onClose, onSaved }) {
   );
 }
 
+function FlyerPopup({ flyer, onClose }) {
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center p-6"
+      style={{ backgroundColor: "rgba(0,0,0,0.75)" }}
+      onClick={onClose}
+    >
+      <div className="w-full max-w-sm relative" onClick={(e) => e.stopPropagation()}>
+        <button
+          onClick={onClose}
+          className="absolute -top-3 -right-3 w-8 h-8 rounded-full flex items-center justify-center z-10"
+          style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
+        >
+          <X size={16} color={C.text} />
+        </button>
+        <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
+          <img src={flyer.imagen_url} alt="Novedad" className="w-full object-cover" />
+          {flyer.enlace && (
+            <div className="p-4">
+              <a
+                href={flyer.enlace}
+                target="_blank"
+                rel="noreferrer"
+                onClick={onClose}
+                className="block w-full text-center rounded-xl py-3 text-sm font-semibold"
+                style={{ backgroundColor: C.green, color: "#08090B" }}
+              >
+                Ver más
+              </a>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FlyerAdminView({ onBack, accessToken }) {
+  const [current, setCurrent] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [file, setFile] = useState(null);
+  const [enlace, setEnlace] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+
+  const load = () => {
+    setLoading(true);
+    fetchActiveFlyer()
+      .then(setCurrent)
+      .finally(() => setLoading(false));
+  };
+
+  React.useEffect(() => {
+    load();
+  }, []);
+
+  const handlePublish = async () => {
+    if (!file) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const url = await uploadFlyerImage(file);
+      await createFlyer(url, enlace.trim(), accessToken);
+      setFile(null);
+      setEnlace("");
+      load();
+    } catch (err) {
+      setError(err.message || "No se pudo publicar el flyer");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeactivate = async () => {
+    setSubmitting(true);
+    try {
+      await deactivateAllFlyers(accessToken);
+      load();
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="max-w-md mx-auto">
+      <div className="flex items-center gap-3 mb-4">
+        <button onClick={onBack} className="p-1 -ml-1">
+          <ArrowLeft size={20} color={C.text} />
+        </button>
+        <span className="text-[15px] font-semibold" style={{ color: C.text }}>Flyer / Promociones</span>
+      </div>
+
+      {loading && <p className="text-sm text-center py-6" style={{ color: C.textDim }}>Cargando...</p>}
+
+      {!loading && current && (
+        <div className="rounded-2xl overflow-hidden mb-5" style={{ backgroundColor: C.card, border: `1px solid ${C.green}` }}>
+          <img src={current.imagen_url} alt="Flyer activo" className="w-full h-40 object-cover" />
+          <div className="px-4 py-3">
+            <div className="text-xs font-semibold mb-2" style={{ color: C.green }}>FLYER ACTIVO AHORA</div>
+            {current.enlace && <div className="text-xs mb-3 truncate" style={{ color: C.textDim }}>{current.enlace}</div>}
+            <button
+              onClick={handleDeactivate}
+              disabled={submitting}
+              className="w-full rounded-xl py-2.5 text-sm font-semibold"
+              style={{ backgroundColor: C.redSoft, color: C.red }}
+            >
+              Quitar flyer (dejar de mostrarlo)
+            </button>
+          </div>
+        </div>
+      )}
+      {!loading && !current && (
+        <p className="text-sm text-center mb-5" style={{ color: C.textDim }}>No hay ningún flyer activo ahora mismo.</p>
+      )}
+
+      <div className="text-[11px] tracking-widest font-semibold mb-3" style={{ color: C.textDim }}>
+        {current ? "REEMPLAZAR POR UNO NUEVO" : "PUBLICAR UN FLYER"}
+      </div>
+
+      <label
+        className="flex items-center justify-center gap-2 rounded-xl py-6 cursor-pointer mb-3"
+        style={{ backgroundColor: C.cardAlt, border: `1px dashed ${C.border}` }}
+      >
+        <UploadCloud size={18} color={C.textDim} />
+        <span className="text-sm" style={{ color: C.textDim }}>{file ? file.name : "Elegir imagen del flyer"}</span>
+        <input type="file" accept="image/*" className="hidden" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+      </label>
+
+      <div className="mb-4">
+        <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>
+          LINK "VER MÁS" (opcional)
+        </label>
+        <input
+          value={enlace}
+          onChange={(e) => setEnlace(e.target.value)}
+          placeholder="https://..."
+          className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
+          style={{ backgroundColor: C.cardAlt, color: C.text, border: `1px solid ${C.border}` }}
+        />
+      </div>
+
+      {error && <p className="text-sm text-center mb-3" style={{ color: C.red }}>{error}</p>}
+
+      <button
+        onClick={handlePublish}
+        disabled={!file || submitting}
+        className="w-full rounded-2xl py-4 text-[15px] font-semibold"
+        style={{
+          backgroundColor: file && !submitting ? C.green : C.borderSoft,
+          color: file && !submitting ? "#08090B" : C.textDim,
+        }}
+      >
+        {submitting ? "Publicando..." : "Publicar flyer"}
+      </button>
+      <p className="text-[11px] text-center mt-3" style={{ color: C.textDim }}>
+        Se muestra como un popup apenas alguien abre la app. Al publicar uno nuevo, se reemplaza el anterior.
+      </p>
+    </div>
+  );
+}
+
 function PendingApprovalView({ onLogout }) {
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center px-6 text-center" style={{ backgroundColor: C.bg }}>
@@ -2178,15 +2430,11 @@ function InicioDashboard({ signals, isAdmin, onOpenSignal, onNuevaSenal, onNavig
   const subButtons = [
     { label: "Herramientas", icon: Wrench, onClick: () => onNavigate("herramientas") },
     { label: "Formación", icon: GraduationCap, onClick: () => onNavigate("mas", { masSection: "formacion" }) },
-    { label: "Comunidad y Productos", icon: Users, onClick: () => onNavigate("mas", { masSection: "comunidad-productos" }) },
+    { label: "Comunidad Operación Trading", icon: Users, onClick: () => onNavigate("mas", { masSection: "comunidad" }) },
   ];
 
   return (
     <div className="max-w-md mx-auto">
-      <div className="flex flex-col items-center mb-5">
-        <img src={LOGO.src} alt="Operación Trading" className="w-24" />
-      </div>
-
       {/* Última señal activa */}
       <div className="mb-4">
         <div className="text-[11px] tracking-widest font-semibold mb-2" style={{ color: C.textDim }}>
@@ -2236,8 +2484,8 @@ function InicioDashboard({ signals, isAdmin, onOpenSignal, onNuevaSenal, onNavig
         ))}
       </div>
 
-      {/* Fila secundaria: Herramientas / Formación / Comunidad y Productos */}
-      <div className="grid grid-cols-3 gap-2 mb-4">
+      {/* Fila secundaria: Herramientas / Formación / Comunidad Operación Trading */}
+      <div className="grid grid-cols-3 gap-2 mb-2">
         {subButtons.map((b) => (
           <button
             key={b.label}
@@ -2250,6 +2498,15 @@ function InicioDashboard({ signals, isAdmin, onOpenSignal, onNuevaSenal, onNavig
           </button>
         ))}
       </div>
+
+      <button
+        onClick={() => onNavigate("mas")}
+        className="w-full rounded-xl px-2 py-3 flex items-center justify-center gap-2 mb-4"
+        style={{ backgroundColor: "transparent", border: `1px solid ${C.borderSoft}` }}
+      >
+        <Menu size={15} color={C.textDim} />
+        <span className="text-[11px] font-semibold" style={{ color: C.textDim }}>MÁS</span>
+      </button>
 
       {/* Próxima clase en vivo */}
       {proximoEvento && (
@@ -3396,6 +3653,8 @@ export default function App() {
   const [session, setSession] = useState(null); // { accessToken, userId, profile }
   const [restoringSession, setRestoringSession] = useState(true);
   const [showPersonalDataPopup, setShowPersonalDataPopup] = useState(false);
+  const [activeFlyer, setActiveFlyer] = useState(null);
+  const [flyerDismissed, setFlyerDismissed] = useState(false);
   const [personalDataDismissed, setPersonalDataDismissed] = useState(false);
   const [tab, setTab] = useState("home");
   const [brokerView, setBrokerView] = useState(null);
@@ -3518,6 +3777,7 @@ export default function App() {
     setTiendaView(null);
     setAdminPanelView(null);
     setPersonalDataDismissed(false);
+    setFlyerDismissed(false);
   };
 
   const isAdmin = !!session?.profile?.es_admin;
@@ -3539,6 +3799,7 @@ export default function App() {
 
   useEffect(() => {
     loadSignals();
+    fetchActiveFlyer().then(setActiveFlyer).catch(() => {});
   }, []);
 
   const filtered = signals.filter((s) => {
@@ -3691,29 +3952,29 @@ export default function App() {
                   </button>
                 ))}
               </div>
-              <div className="flex flex-col gap-3">
-                {loadingSignals && (
-                  <div className="text-center text-sm py-10" style={{ color: C.textDim }}>
-                    Cargando señales...
-                  </div>
-                )}
-                {!loadingSignals && errorSignals && (
-                  <div
-                    className="text-center text-sm py-6 px-4 rounded-2xl"
-                    style={{ color: C.red, backgroundColor: C.card, border: `1px solid ${C.border}` }}
-                  >
-                    No se pudieron cargar las señales: {errorSignals}
-                  </div>
-                )}
+              {loadingSignals && (
+                <div className="text-center text-sm py-10" style={{ color: C.textDim }}>
+                  Cargando señales...
+                </div>
+              )}
+              {!loadingSignals && errorSignals && (
+                <div
+                  className="text-center text-sm py-6 px-4 rounded-2xl"
+                  style={{ color: C.red, backgroundColor: C.card, border: `1px solid ${C.border}` }}
+                >
+                  No se pudieron cargar las señales: {errorSignals}
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
                 {!loadingSignals && !errorSignals && filtered.map((s) => (
-                  <SignalCard key={s.id} signal={s} onOpen={openSignal} />
+                  <SignalCard key={s.id} signal={s} onOpen={openSignal} compact />
                 ))}
-                {!loadingSignals && !errorSignals && filtered.length === 0 && (
-                  <div className="text-center text-sm py-10" style={{ color: C.textDim }}>
-                    Todavía no hay señales cargadas.
-                  </div>
-                )}
               </div>
+              {!loadingSignals && !errorSignals && filtered.length === 0 && (
+                <div className="text-center text-sm py-10" style={{ color: C.textDim }}>
+                  Todavía no hay señales cargadas.
+                </div>
+              )}
             </>
           )}
 
@@ -3738,7 +3999,7 @@ export default function App() {
               onNavigate={(t, extra) => {
                 setTab(t);
                 if (extra?.herramientasView) setHerramientasView(extra.herramientasView);
-                if (extra?.masSection) setMasSection(extra.masSection);
+                setMasSection(extra?.masSection || null);
               }}
             />
           )}
@@ -3810,6 +4071,17 @@ export default function App() {
                   </div>
                   <ArrowLeft size={16} color={C.textDim} style={{ transform: "rotate(180deg)" }} />
                 </button>
+                <button
+                  onClick={() => setAdminPanelView("flyer")}
+                  className="flex items-center justify-between rounded-2xl px-5 py-4"
+                  style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
+                >
+                  <div className="flex items-center gap-3">
+                    <ImageIcon size={18} color={C.green} />
+                    <span className="font-medium text-[14px]" style={{ color: C.text }}>Flyer / Promociones</span>
+                  </div>
+                  <ArrowLeft size={16} color={C.textDim} style={{ transform: "rotate(180deg)" }} />
+                </button>
               </div>
               <p className="text-[11px] text-center mt-4" style={{ color: C.textDim }}>
                 Vamos a sumar más paneles administrativos acá a medida que los definamos.
@@ -3822,6 +4094,9 @@ export default function App() {
               accessToken={session.accessToken}
               onApproved={() => refreshPendingCount(session.accessToken)}
             />
+          )}
+          {tab === "mas" && masSection === "administracion" && isAdmin && adminPanelView === "flyer" && (
+            <FlyerAdminView onBack={() => setAdminPanelView(null)} accessToken={session.accessToken} />
           )}
 
           {tab === "mas" && masSection === "formacion" && formacionView === null && (
@@ -3952,6 +4227,10 @@ export default function App() {
             setSession((s) => ({ ...s, profile: { ...s.profile, nombre: nuevoNombre } }));
           }}
         />
+      )}
+
+      {activeFlyer && !flyerDismissed && !needsPersonalData && (
+        <FlyerPopup flyer={activeFlyer} onClose={() => setFlyerDismissed(true)} />
       )}
 
       <div
