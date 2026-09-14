@@ -32,6 +32,9 @@ import {
   MessageCircle,
   ThumbsUp,
   ThumbsDown,
+  Eye,
+  EyeOff,
+  Download,
   Landmark,
   Wrench,
   GraduationCap,
@@ -87,23 +90,23 @@ const LIGHT = {
 };
 
 const MEDIO = {
-  bg: "#EAEBEE",
-  card: "#F6F6F7",
-  cardAlt: "#E4E5E8",
-  border: "#D6D8DC",
-  borderSoft: "#DEE0E3",
-  text: "#22242A",
-  textDim: "#72767E",
-  green: "#0F9D75",
-  greenSoft: "rgba(15,157,117,0.12)",
-  blue: "#2F6FE4",
-  blueSoft: "rgba(47,111,228,0.12)",
-  red: "#DC2626",
-  redSoft: "rgba(220,38,38,0.10)",
-  grey: "#9AA3AF",
-  warningBg: "#FBE7B6",
-  warningText: "#7A4A08",
-  warningBorder: "#F0B429",
+  bg: "#9CA1AA",
+  card: "#AEB2BB",
+  cardAlt: "#93979F",
+  border: "#7D818A",
+  borderSoft: "#888C94",
+  text: "#101114",
+  textDim: "#3A3D42",
+  green: "#0B7A5C",
+  greenSoft: "rgba(11,122,92,0.18)",
+  blue: "#1F52B8",
+  blueSoft: "rgba(31,82,184,0.18)",
+  red: "#B01E1E",
+  redSoft: "rgba(176,30,30,0.16)",
+  grey: "#6B6F77",
+  warningBg: "#E0C173",
+  warningText: "#4A2E05",
+  warningBorder: "#8A6011",
 };
 
 const C = { ...DARK };
@@ -503,6 +506,21 @@ function computeSubStatus(profile) {
   return profile.pago ? { label: "Activa", color: C.green } : { label: "Prueba gratis", color: C.blue };
 }
 
+function computePlanLabel(profile) {
+  if (!profile) return "—";
+  if (profile.vitalicio) return "Vitalicio";
+  if (profile.es_admin) return "Admin";
+  if (!profile.pago) return "Prueba gratuita";
+  if (!profile.fecha_renovacion || !profile.fecha_vencimiento) return "Membresía";
+  const inicio = new Date(profile.fecha_renovacion + "T00:00:00");
+  const fin = new Date(profile.fecha_vencimiento + "T00:00:00");
+  const meses = Math.round((fin - inicio) / (1000 * 60 * 60 * 24 * 30));
+  if (meses >= 11) return "Membresía X12";
+  if (meses >= 5) return "Membresía X6";
+  if (meses >= 2) return "Membresía X3";
+  return "Membresía";
+}
+
 function daysUntilVencimiento(profile) {
   if (!profile || profile.vitalicio || !profile.fecha_vencimiento) return null;
   const today = new Date();
@@ -527,6 +545,17 @@ async function updateSignal(id, payload) {
     throw new Error(`Error ${res.status} al actualizar la señal ${text}`);
   }
   return res.json();
+}
+
+async function deleteSignal(id) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/signals?id=eq.${id}`, {
+    method: "DELETE",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+    },
+  });
+  if (!res.ok) throw new Error("No se pudo eliminar la señal");
 }
 
 async function fetchSignals() {
@@ -742,6 +771,19 @@ function StatsHeader({ risk, setRisk, stats }) {
   );
 }
 
+function decimalsForPar(par) {
+  const p = (par || "").toUpperCase();
+  if (p.includes("JPY")) return 3;
+  if (p.includes("XAU") || p.includes("XAG") || p.includes("GOLD")) return 2;
+  if (p.includes("BTC") || p.includes("US30") || p.includes("USTEC") || p.includes("US500") || p.includes("NAS")) return 2;
+  return 5;
+}
+
+function formatPriceShare(n, par) {
+  if (n === null || n === undefined || isNaN(n)) return "";
+  return Number(n).toFixed(decimalsForPar(par));
+}
+
 function formatSignalText(signal) {
   const dir = signal.direccion === "venta" ? "VENTA" : "COMPRA";
   const estadoInfo = ESTADO_STYLES[signal.estado] || { label: signal.estado };
@@ -749,9 +791,9 @@ function formatSignalText(signal) {
     `📊 *${signal.par}* — ${dir}`,
     `Estado: ${estadoInfo.label}`,
     ``,
-    `Entrada: ${formatPrice(signal.entrada)}`,
-    `Stop Loss: ${formatPrice(signal.sl)}`,
-    `Take Profit: ${formatPrice(signal.tp)}`,
+    `Entrada: ${formatPriceShare(signal.entrada, signal.par)}`,
+    `Stop Loss: ${formatPriceShare(signal.sl, signal.par)}`,
+    `Take Profit: ${formatPriceShare(signal.tp, signal.par)}`,
     `Tipo de orden: ${signal.tipoOrden}`,
     ``,
     `Operación Trading — ${signal.autor}`,
@@ -931,7 +973,9 @@ function DetailView({ signal, onBack, risk, onEdit, isAdmin }) {
 }
 
 const ESTADOS = ["pendiente", "activa", "ganada", "perdida", "descartada"];
-const TIPOS_ORDEN = ["Buy Limit", "Sell Limit", "Buy Stop", "Sell Stop", "Market"];
+const TIPOS_ORDEN_COMPRA = ["Buy Limit", "Buy Stop", "Market"];
+const TIPOS_ORDEN_VENTA = ["Sell Limit", "Sell Stop", "Market"];
+const INSTRUMENTOS_COMUNES = ["BTCUSD", "EURUSD", "XAUUSD", "GBPUSD", "GBPJPY", "NZDUSD", "US30", "USTEC"];
 
 function addMonths(dateStr, months) {
   if (!dateStr) return "";
@@ -974,11 +1018,34 @@ function AdminForm({ onClose, onCreated, existingSignal }) {
   const [stopLoss, setStopLoss] = useState(existingSignal ? String(existingSignal.sl) : "");
   const [takeProfit, setTakeProfit] = useState(existingSignal ? String(existingSignal.tp) : "");
   const [tipoOrden, setTipoOrden] = useState(existingSignal?.tipoOrden || "Buy Limit");
+  const tiposDisponibles = direccion === "venta" ? TIPOS_ORDEN_VENTA : TIPOS_ORDEN_COMPRA;
+
+  React.useEffect(() => {
+    if (!tiposDisponibles.includes(tipoOrden)) {
+      setTipoOrden(tiposDisponibles[0]);
+    }
+  }, [direccion]);
+
   const [estado, setEstado] = useState(existingSignal?.estado || "pendiente");
   const [autor, setAutor] = useState(existingSignal?.autor || "");
   const [file, setFile] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    setError(null);
+    try {
+      await deleteSignal(existingSignal.id);
+      onCreated();
+      onClose();
+    } catch (err) {
+      setError(err.message || "No se pudo eliminar la señal");
+      setDeleting(false);
+    }
+  };
 
   const pips = calcPips(par, precioEntrada, stopLoss);
 
@@ -1050,9 +1117,15 @@ function AdminForm({ onClose, onCreated, existingSignal }) {
               value={par}
               onChange={(e) => setPar(e.target.value)}
               placeholder="EUR/USD"
+              list="instrumentos-comunes"
               className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
               style={inputStyle}
             />
+            <datalist id="instrumentos-comunes">
+              {INSTRUMENTOS_COMUNES.map((i) => (
+                <option key={i} value={i} />
+              ))}
+            </datalist>
           </div>
 
           <div>
@@ -1116,7 +1189,7 @@ function AdminForm({ onClose, onCreated, existingSignal }) {
               className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
               style={inputStyle}
             >
-              {TIPOS_ORDEN.map((t) => (
+              {tiposDisponibles.map((t) => (
                 <option key={t} value={t}>{t}</option>
               ))}
             </select>
@@ -1189,6 +1262,43 @@ function AdminForm({ onClose, onCreated, existingSignal }) {
           >
             {submitting ? "Guardando..." : isEdit ? "Guardar cambios" : "Publicar señal"}
           </button>
+
+          {isEdit && (
+            <>
+              {!confirmDelete ? (
+                <button
+                  onClick={() => setConfirmDelete(true)}
+                  className="w-full rounded-2xl py-3.5 text-sm font-semibold mt-1"
+                  style={{ backgroundColor: "transparent", color: C.red, border: `1px solid ${C.red}55` }}
+                >
+                  Eliminar señal
+                </button>
+              ) : (
+                <div className="rounded-2xl p-4 mt-1" style={{ backgroundColor: C.redSoft, border: `1px solid ${C.red}55` }}>
+                  <p className="text-sm text-center mb-3" style={{ color: C.text }}>
+                    ¿Seguro que querés eliminar esta señal? No se puede deshacer.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setConfirmDelete(false)}
+                      className="flex-1 rounded-xl py-2.5 text-sm font-semibold"
+                      style={{ backgroundColor: C.cardAlt, color: C.text, border: `1px solid ${C.border}` }}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleDelete}
+                      disabled={deleting}
+                      className="flex-1 rounded-xl py-2.5 text-sm font-semibold"
+                      style={{ backgroundColor: C.red, color: "#08090B" }}
+                    >
+                      {deleting ? "Eliminando..." : "Sí, eliminar"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -1648,6 +1758,7 @@ function LoginView({ onLogin, onSignup }) {
   const [nombre, setNombre] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [esComunidad, setEsComunidad] = useState(null); // null | true | false
   const [discordUsuario, setDiscordUsuario] = useState("");
   const [termsChecked, setTermsChecked] = useState(false);
@@ -1684,7 +1795,7 @@ function LoginView({ onLogin, onSignup }) {
       <div className="max-w-sm mx-auto w-full">
         <div className="flex flex-col items-center mb-6">
           <img src={LOGO.src} alt="Operación Trading" className="w-32 mb-3" />
-          <span className="text-[15px] font-bold tracking-wide" style={{ color: C.text }}>APP TRADER</span>
+          <span className="text-[15px] font-bold tracking-wide" style={{ color: C.text }}>TRADER APP</span>
           <span className="text-xs text-center mt-1 px-4" style={{ color: C.textDim }}>
             Todas las herramientas de un trader profesional en un solo lugar
           </span>
@@ -1773,15 +1884,25 @@ function LoginView({ onLogin, onSignup }) {
             </div>
             <div className="mb-5">
               <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>CONTRASEÑA</label>
-              <input
-                type="password"
-                name="password"
-                autoComplete={mode === "login" ? "current-password" : "new-password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
-                style={inputStyle}
-              />
+              <div className="relative mt-1">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  autoComplete={mode === "login" ? "current-password" : "new-password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full rounded-xl pl-4 pr-11 py-3 text-[15px] outline-none"
+                  style={inputStyle}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2"
+                  aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                >
+                  {showPassword ? <EyeOff size={18} color={C.textDim} /> : <Eye size={18} color={C.textDim} />}
+                </button>
+              </div>
             </div>
 
             {mode === "signup" && (
@@ -2402,7 +2523,7 @@ function PlanesProView({ onBack }) {
   );
 }
 
-function InicioDashboard({ signals, isAdmin, onOpenSignal, onNuevaSenal, onNavigate, onDesbloquearPro, profile }) {
+function InicioDashboard({ signals, isAdmin, onOpenSignal, onNuevaSenal, onNavigate, onDesbloquearPro, profile, onOpenBitacora }) {
   const ultimasSenales = (signals || []).slice(0, 2);
   const [novedades, setNovedades] = useState([]);
 
@@ -2418,7 +2539,7 @@ function InicioDashboard({ signals, isAdmin, onOpenSignal, onNuevaSenal, onNavig
   const mainButtons = [
     { label: "Señales", icon: BarChart3, onClick: () => onNavigate("senales") },
     { label: "Broker", icon: Landmark, onClick: () => onNavigate("broker") },
-    { label: "Bitácora", icon: Wrench, onClick: () => onNavigate("herramientas", { herramientasView: "bitacora" }) },
+    { label: "Bitácora", icon: Wrench, onClick: onOpenBitacora },
   ];
 
   const subButtons = [
@@ -2596,7 +2717,6 @@ const BROKER_ITEMS = [
 const HERRAMIENTAS_ITEMS = [
   { id: "ia-trader", label: "IA Trader" },
   { id: "backtesting", label: "Backtesting" },
-  { id: "bitacora", label: "Bitácora" },
   { id: "calculadoras", label: "Calculadoras", external: "https://www.myfxbook.com/forex-calculators" },
   { id: "plan-trading", label: "Plan de trading" },
   { id: "estadisticas", label: "Estadísticas" },
@@ -3034,9 +3154,50 @@ function UsuariosView({ onBack, accessToken, onApproved }) {
     );
   };
 
+  const exportarCSV = () => {
+    const headers = ["Nombre", "Email", "ID", "Fecha inicio", "Renovó", "Vence", "Estado", "Admin", "Alumno comunidad", "Discord", "Teléfono"];
+    const rows = users.map((u) => {
+      const status = computeSubStatus(u);
+      return [
+        u.nombre || "",
+        u.email || "",
+        u.id || "",
+        u.fecha_inicio || "",
+        u.fecha_renovacion || "",
+        u.fecha_vencimiento || "",
+        status.label,
+        u.es_admin ? "Sí" : "No",
+        u.alumno_comunidad ? "Sí" : "No",
+        u.discord_usuario || "",
+        u.telefono || "",
+      ];
+    });
+    const csv = [headers, ...rows]
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `usuarios-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="max-w-md mx-auto">
       <ScreenHeader title="Usuarios" onBack={onBack} />
+
+      {!loading && !error && users.length > 0 && (
+        <button
+          onClick={exportarCSV}
+          className="w-full flex items-center justify-center gap-2 rounded-xl py-2.5 mb-4 text-sm font-semibold"
+          style={{ backgroundColor: C.cardAlt, color: C.text, border: `1px solid ${C.border}` }}
+        >
+          <Download size={15} />
+          Exportar a Excel/CSV
+        </button>
+      )}
 
       {loading && <p className="text-sm text-center py-10" style={{ color: C.textDim }}>Cargando usuarios...</p>}
       {!loading && error && <p className="text-sm text-center py-10" style={{ color: C.red }}>{error}</p>}
@@ -3221,14 +3382,27 @@ function ConfiguracionView({ onBack, themeName, onSetTheme, nombre, setNombre, a
 
       {profile && (
         <div className="rounded-2xl px-5 py-4 mb-4" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between mb-3">
             <span className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>MI SUSCRIPCIÓN</span>
             <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ color: status.color, backgroundColor: `${status.color}22` }}>
               {status.label}
             </span>
           </div>
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs" style={{ color: C.textDim }}>Plan actual</span>
+            <span className="text-sm font-semibold" style={{ color: C.text }}>{computePlanLabel(profile)}</span>
+          </div>
           {!profile.vitalicio && (
-            <div className="text-xs mb-3" style={{ color: C.textDim }}>Vence: {profile.fecha_vencimiento || "—"}</div>
+            <>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs" style={{ color: C.textDim }}>Último pago</span>
+                <span className="text-sm" style={{ color: C.text }}>{profile.fecha_renovacion || "—"}</span>
+              </div>
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs" style={{ color: C.textDim }}>Vence</span>
+                <span className="text-sm font-semibold" style={{ color: status.color }}>{profile.fecha_vencimiento || "—"}</span>
+              </div>
+            </>
           )}
           {!profile.vitalicio && (
             <button
@@ -3246,6 +3420,24 @@ function ConfiguracionView({ onBack, themeName, onSetTheme, nombre, setNombre, a
           >
             Ver historial de comprobantes
           </button>
+        </div>
+      )}
+
+      {profile && (
+        <div className="rounded-2xl px-5 py-4 mb-4" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
+          <span className="text-[11px] tracking-wide font-medium mb-3 block" style={{ color: C.textDim }}>MIS DATOS</span>
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs" style={{ color: C.textDim }}>Email</span>
+            <span className="text-sm" style={{ color: C.text }}>{profile.email || "—"}</span>
+          </div>
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs" style={{ color: C.textDim }}>Teléfono</span>
+            <span className="text-sm" style={{ color: C.text }}>{profile.telefono || "—"}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-xs" style={{ color: C.textDim }}>Usuario de Discord</span>
+            <span className="text-sm" style={{ color: C.text }}>{profile.discord_usuario || "—"}</span>
+          </div>
         </div>
       )}
 
@@ -3287,17 +3479,6 @@ function ConfiguracionView({ onBack, themeName, onSetTheme, nombre, setNombre, a
           ))}
         </div>
       </div>
-
-      {isAdmin && (
-        <button
-          onClick={onOpenUsuarios}
-          className="w-full flex items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-semibold mb-3"
-          style={{ backgroundColor: C.cardAlt, color: C.text, border: `1px solid ${C.border}` }}
-        >
-          <UserCog size={16} />
-          Usuarios (admin)
-        </button>
-      )}
 
       <button
         onClick={() => setShowTermsPage(true)}
@@ -3503,7 +3684,7 @@ function TopBar({ nombre, avatar, isAdmin, adminPendingTotal, onOpenAdminAlerts,
         <img src={LOGO.src} alt="Operación Trading" className="h-8 shrink-0" />
         <div className="flex flex-col leading-none items-start">
           <span className="text-[12px] font-bold tracking-wide whitespace-nowrap" style={{ color: C.text }}>
-            APP TRADER
+            TRADER APP
           </span>
           <span className="text-[8px] tracking-wide font-medium whitespace-nowrap" style={{ color: C.textDim }}>
             Todo en un solo lugar
@@ -3668,7 +3849,7 @@ export default function App() {
         const rows = await createProfileRow(data.user.id, {
           email,
           fecha_inicio: hoy,
-          fecha_vencimiento: addDays(hoy, 30),
+          fecha_vencimiento: addDays(hoy, 10),
           pago: false,
           aprobado: !REQUIRE_APPROVAL,
           es_admin: false,
@@ -3693,7 +3874,7 @@ export default function App() {
       nombre: nombreCompleto,
       email,
       fecha_inicio: hoy,
-      fecha_vencimiento: addDays(hoy, 30),
+      fecha_vencimiento: addDays(hoy, 10),
       pago: false,
       aprobado: !REQUIRE_APPROVAL,
       es_admin: false,
@@ -3932,6 +4113,7 @@ export default function App() {
               onOpenSignal={openSignal}
               onNuevaSenal={() => setShowAdminForm(true)}
               onDesbloquearPro={() => setSpecialView("planes")}
+              onOpenBitacora={() => setSpecialView("bitacora")}
               onNavigate={(t, extra) => {
                 setTab(t);
                 if (extra?.herramientasView) setHerramientasView(extra.herramientasView);
@@ -4105,6 +4287,9 @@ export default function App() {
             />
           )}
           {specialView === "planes" && <PlanesProView onBack={() => setSpecialView(null)} />}
+          {specialView === "bitacora" && (
+            <PillarComingSoon label="Bitácora" onBack={() => setSpecialView(null)} />
+          )}
           {specialView === "config" && (
             <ConfiguracionView
               onBack={() => setSpecialView(null)}
