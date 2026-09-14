@@ -684,8 +684,18 @@ function SignalCard({ signal, onOpen, compact }) {
             </span>
           </div>
           <div className="flex items-center gap-1">
-            {signal.estado === "ganada" && <ThumbsUp size={14} color={C.green} />}
-            {signal.estado === "perdida" && <ThumbsDown size={14} color={C.red} />}
+            {signal.estado === "ganada" && (
+              <>
+                <ThumbsUp size={14} color={C.green} />
+                <span className="text-[10px] font-medium" style={{ color: isClosed ? C.textDim : C.green }}>Ganada</span>
+              </>
+            )}
+            {signal.estado === "perdida" && (
+              <>
+                <ThumbsDown size={14} color={C.red} />
+                <span className="text-[10px] font-medium" style={{ color: isClosed ? C.textDim : C.red }}>Perdida</span>
+              </>
+            )}
             {signal.estado !== "ganada" && signal.estado !== "perdida" && (
               <span className="text-[10px] font-medium" style={{ color: isClosed ? C.textDim : estado.color }}>{estado.label}</span>
             )}
@@ -720,8 +730,18 @@ function SignalCard({ signal, onOpen, compact }) {
             {signal.direccion === "venta" ? "VENTA" : "COMPRA"}
           </div>
           <div className="text-xs mt-0.5 flex items-center justify-end gap-1" style={{ color: estado.color }}>
-            {signal.estado === "ganada" && <ThumbsUp size={14} color={C.green} />}
-            {signal.estado === "perdida" && <ThumbsDown size={14} color={C.red} />}
+            {signal.estado === "ganada" && (
+              <>
+                <ThumbsUp size={14} color={C.green} />
+                <span>Ganada</span>
+              </>
+            )}
+            {signal.estado === "perdida" && (
+              <>
+                <ThumbsDown size={14} color={C.red} />
+                <span>Perdida</span>
+              </>
+            )}
             {signal.estado !== "ganada" && signal.estado !== "perdida" && estado.label}
           </div>
         </div>
