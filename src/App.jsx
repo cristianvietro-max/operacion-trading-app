@@ -35,6 +35,7 @@ import {
   Eye,
   EyeOff,
   Download,
+  Search,
   Landmark,
   Wrench,
   GraduationCap,
@@ -90,23 +91,23 @@ const LIGHT = {
 };
 
 const MEDIO = {
-  bg: "#9CA1AA",
-  card: "#AEB2BB",
-  cardAlt: "#93979F",
-  border: "#7D818A",
-  borderSoft: "#888C94",
-  text: "#101114",
-  textDim: "#3A3D42",
-  green: "#0B7A5C",
-  greenSoft: "rgba(11,122,92,0.18)",
-  blue: "#1F52B8",
-  blueSoft: "rgba(31,82,184,0.18)",
-  red: "#B01E1E",
-  redSoft: "rgba(176,30,30,0.16)",
-  grey: "#6B6F77",
-  warningBg: "#E0C173",
-  warningText: "#4A2E05",
-  warningBorder: "#8A6011",
+  bg: "#6E7178",
+  card: "#7D8089",
+  cardAlt: "#63666D",
+  border: "#525459",
+  borderSoft: "#5B5D63",
+  text: "#F5F6F7",
+  textDim: "#C7C9CD",
+  green: "#1F8F6C",
+  greenSoft: "rgba(31,143,108,0.25)",
+  blue: "#3D6FD1",
+  blueSoft: "rgba(61,111,209,0.25)",
+  red: "#D14A4A",
+  redSoft: "rgba(209,74,74,0.22)",
+  grey: "#9CA0A8",
+  warningBg: "#8A6B1F",
+  warningText: "#FFE7A8",
+  warningBorder: "#B98A25",
 };
 
 const C = { ...DARK };
@@ -584,6 +585,7 @@ async function fetchSignals() {
     fecha: r.created_at
       ? new Date(r.created_at).toLocaleString("es-AR", { dateStyle: "medium", timeStyle: "short" })
       : "",
+    createdAt: r.created_at || null,
   }));
 }
 
@@ -658,7 +660,12 @@ function CopyField({ label, value, formatted, color }) {
 
 function SignalCard({ signal, onOpen, compact }) {
   const estado = ESTADO_STYLES[signal.estado];
-  const borderColor = signal.estado === "pendiente" ? "#F0B429" : C.border;
+  const borderColor =
+    signal.estado === "pendiente" ? "#F0B429" :
+    signal.estado === "ganada" ? C.green :
+    signal.estado === "perdida" ? C.red :
+    signal.estado === "descartada" ? C.grey :
+    C.border;
   const isClosed = ["ganada", "perdida", "descartada"].includes(signal.estado);
 
   if (compact) {
@@ -1010,7 +1017,7 @@ function calcPips(par, entrada, sl) {
   return Math.round(pips * 10) / 10;
 }
 
-function AdminForm({ onClose, onCreated, existingSignal }) {
+function AdminForm({ onClose, onCreated, existingSignal, onDeleted }) {
   const isEdit = !!existingSignal;
   const [par, setPar] = useState(existingSignal?.par || "");
   const [direccion, setDireccion] = useState(existingSignal?.direccion || "compra");
@@ -1039,8 +1046,12 @@ function AdminForm({ onClose, onCreated, existingSignal }) {
     setError(null);
     try {
       await deleteSignal(existingSignal.id);
-      onCreated();
-      onClose();
+      if (onDeleted) {
+        onDeleted();
+      } else {
+        onCreated();
+        onClose();
+      }
     } catch (err) {
       setError(err.message || "No se pudo eliminar la señal");
       setDeleting(false);
@@ -2523,6 +2534,65 @@ function PlanesProView({ onBack }) {
   );
 }
 
+function RachaDiaria({ signals }) {
+  const dias = [];
+  const hoy = new Date();
+  for (let i = 9; i >= 0; i--) {
+    const d = new Date(hoy);
+    d.setDate(d.getDate() - i);
+    d.setHours(0, 0, 0, 0);
+    dias.push(d);
+  }
+
+  const resultadoDelDia = (dia) => {
+    const siguiente = new Date(dia);
+    siguiente.setDate(siguiente.getDate() + 1);
+    const delDia = signals.filter((s) => {
+      if (!s.createdAt) return false;
+      const f = new Date(s.createdAt);
+      return f >= dia && f < siguiente;
+    });
+    if (delDia.some((s) => s.estado === "perdida")) return "perdida";
+    if (delDia.some((s) => s.estado === "ganada")) return "ganada";
+    return "sin-trades";
+  };
+
+  return (
+    <div className="rounded-2xl px-4 py-4 mb-4" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
+      <div className="text-[11px] tracking-widest font-semibold mb-3" style={{ color: C.textDim }}>
+        ÚLTIMOS 10 DÍAS
+      </div>
+      <div className="flex items-end justify-between">
+        {dias.map((d, i) => {
+          const resultado = resultadoDelDia(d);
+          return (
+            <div key={i} className="flex flex-col items-center gap-1.5">
+              {resultado === "ganada" && <Check size={16} color={C.green} strokeWidth={3} />}
+              {resultado === "perdida" && <X size={16} color={C.red} strokeWidth={3} />}
+              {resultado === "sin-trades" && <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: C.border }} />}
+              <span className="text-[9px]" style={{ color: C.textDim }}>{d.getDate()}</span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex items-center gap-4 mt-3 pt-3 justify-center" style={{ borderTop: `1px solid ${C.borderSoft}` }}>
+        <div className="flex items-center gap-1">
+          <Check size={11} color={C.green} strokeWidth={3} />
+          <span className="text-[10px]" style={{ color: C.textDim }}>Ganado</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <X size={11} color={C.red} strokeWidth={3} />
+          <span className="text-[10px]" style={{ color: C.textDim }}>Perdido</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: C.border }} />
+          <span className="text-[10px]" style={{ color: C.textDim }}>Sin trades</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function InicioDashboard({ signals, isAdmin, onOpenSignal, onNuevaSenal, onNavigate, onDesbloquearPro, profile, onOpenBitacora }) {
   const ultimasSenales = (signals || []).slice(0, 2);
   const [novedades, setNovedades] = useState([]);
@@ -2567,6 +2637,8 @@ function InicioDashboard({ signals, isAdmin, onOpenSignal, onNuevaSenal, onNavig
           </div>
         )}
       </div>
+
+      <RachaDiaria signals={signals} />
 
       {!profile?.vitalicio && (
         <button
@@ -3046,6 +3118,7 @@ function UsuariosView({ onBack, accessToken, onApproved }) {
   const [approvingId, setApprovingId] = useState(null);
   const [viewingImage, setViewingImage] = useState(null);
   const [actionError, setActionError] = useState(null);
+  const [search, setSearch] = useState("");
 
   const load = () => {
     setLoading(true);
@@ -3063,8 +3136,17 @@ function UsuariosView({ onBack, accessToken, onApproved }) {
     load();
   }, []);
 
-  const pendientes = users.filter((u) => u.aprobado === false);
-  const aprobados = users.filter((u) => u.aprobado !== false);
+  const searchLower = search.trim().toLowerCase();
+  const usersFiltrados = searchLower
+    ? users.filter(
+        (u) =>
+          (u.nombre || "").toLowerCase().includes(searchLower) ||
+          (u.email || "").toLowerCase().includes(searchLower)
+      )
+    : users;
+
+  const pendientes = usersFiltrados.filter((u) => u.aprobado === false);
+  const aprobados = usersFiltrados.filter((u) => u.aprobado !== false);
 
   const quickApprove = async (u) => {
     setApprovingId(u.id);
@@ -3117,34 +3199,39 @@ function UsuariosView({ onBack, accessToken, onApproved }) {
 
   const renderUserCard = (u, highlight) => {
     const status = computeSubStatus(u);
+    const inicial = (u.nombre || u.email || "?").trim().charAt(0).toUpperCase();
     return (
       <div
         key={u.id}
-        className="rounded-2xl px-5 py-4"
+        className="rounded-xl overflow-hidden"
         style={{ backgroundColor: C.card, border: `1px solid ${highlight ? "#F0B429" : C.border}` }}
       >
-        <button onClick={() => setEditingUser(u)} className="w-full text-left">
-          <div className="flex items-center justify-between mb-1">
-            <span className="font-semibold text-[14px]" style={{ color: C.text }}>{u.nombre || "Sin nombre"}</span>
-            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ color: status.color, backgroundColor: `${status.color}22` }}>
-              {status.label}
-            </span>
+        <button onClick={() => setEditingUser(u)} className="w-full flex items-center gap-3 px-3 py-2.5 text-left">
+          <div
+            className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-xs font-bold"
+            style={{ backgroundColor: C.cardAlt, color: C.textDim }}
+          >
+            {inicial}
           </div>
-          <div className="text-xs mb-2" style={{ color: C.textDim }}>{u.email}</div>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px]" style={{ color: C.textDim }}>
-            <span>Inicio: {u.fecha_inicio || "—"}</span>
-            <span>Renovó: {u.fecha_renovacion || "—"}</span>
-            {!u.vitalicio && <span>Vence: {u.fecha_vencimiento || "—"}</span>}
-            {u.es_admin && <span style={{ color: C.blue }}>Admin</span>}
-            {u.alumno_comunidad && <span style={{ color: C.green }}>Alumno</span>}
-            {u.alumno_comunidad && u.discord_usuario && <span>Discord: {u.discord_usuario}</span>}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="font-semibold text-[13px] truncate" style={{ color: C.text }}>{u.nombre || "Sin nombre"}</span>
+              {u.es_admin && <span className="text-[9px] font-bold px-1 rounded" style={{ backgroundColor: C.blueSoft, color: C.blue }}>ADMIN</span>}
+            </div>
+            <div className="text-[11px] truncate" style={{ color: C.textDim }}>{u.email}</div>
           </div>
+          <span
+            className="text-[10px] font-semibold px-2 py-1 rounded-full shrink-0 whitespace-nowrap"
+            style={{ color: status.color, backgroundColor: `${status.color}22` }}
+          >
+            {status.label}
+          </span>
         </button>
         {highlight && (
           <button
             onClick={() => quickApprove(u)}
             disabled={approvingId === u.id}
-            className="w-full mt-3 rounded-xl py-2.5 text-sm font-semibold"
+            className="w-full py-2 text-xs font-semibold"
             style={{ backgroundColor: C.green, color: "#08090B" }}
           >
             {approvingId === u.id ? "Habilitando..." : "✓ Habilitar cuenta"}
@@ -3187,6 +3274,19 @@ function UsuariosView({ onBack, accessToken, onApproved }) {
   return (
     <div className="max-w-md mx-auto">
       <ScreenHeader title="Usuarios" onBack={onBack} />
+
+      {!loading && !error && users.length > 0 && (
+        <div className="relative mb-3">
+          <Search size={15} color={C.textDim} className="absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por nombre o email..."
+            className="w-full rounded-xl pl-9 pr-3 py-2.5 text-sm outline-none"
+            style={{ backgroundColor: C.cardAlt, color: C.text, border: `1px solid ${C.border}` }}
+          />
+        </div>
+      )}
 
       {!loading && !error && users.length > 0 && (
         <button
@@ -3270,7 +3370,7 @@ function UsuariosView({ onBack, accessToken, onApproved }) {
           <div className="text-[11px] tracking-widest font-semibold mb-3" style={{ color: C.warningText }}>
             CUENTAS BLOQUEADAS ({pendientes.length})
           </div>
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2">
             {pendientes.map((u) => renderUserCard(u, true))}
           </div>
         </div>
@@ -3280,13 +3380,16 @@ function UsuariosView({ onBack, accessToken, onApproved }) {
         <div>
           {pendientes.length > 0 && (
             <div className="text-[11px] tracking-widest font-semibold mb-3" style={{ color: C.textDim }}>
-              TODOS LOS USUARIOS
+              TODOS LOS USUARIOS ({aprobados.length})
             </div>
           )}
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2">
             {aprobados.map((u) => renderUserCard(u, false))}
             {users.length === 0 && (
               <p className="text-sm text-center py-10" style={{ color: C.textDim }}>No hay usuarios cargados todavía.</p>
+            )}
+            {users.length > 0 && usersFiltrados.length === 0 && (
+              <p className="text-sm text-center py-10" style={{ color: C.textDim }}>Ningún usuario coincide con "{search}".</p>
             )}
           </div>
         </div>
@@ -3317,7 +3420,7 @@ function UsuariosView({ onBack, accessToken, onApproved }) {
   );
 }
 
-function ConfiguracionView({ onBack, themeName, onSetTheme, nombre, setNombre, avatar, setAvatar, profile, onLogout, isAdmin, onOpenUsuarios, accessToken }) {
+function ConfiguracionView({ onBack, themeName, onSetTheme, nombre, setNombre, avatar, setAvatar, profile, onLogout, isAdmin, onOpenUsuarios, accessToken, onProfileUpdated }) {
   const status = computeSubStatus(profile);
   const [showProofForm, setShowProofForm] = useState(false);
   const [proofSent, setProofSent] = useState(false);
@@ -3325,6 +3428,32 @@ function ConfiguracionView({ onBack, themeName, onSetTheme, nombre, setNombre, a
   const [showTermsPage, setShowTermsPage] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [avatarError, setAvatarError] = useState(null);
+  const [telefonoLocal, setTelefonoLocal] = useState(profile?.telefono || "");
+  const [discordLocal, setDiscordLocal] = useState(profile?.discord_usuario || "");
+  const [savingDatos, setSavingDatos] = useState(false);
+  const [datosSaved, setDatosSaved] = useState(false);
+  const [datosError, setDatosError] = useState(null);
+
+  const handleSaveDatos = async () => {
+    setSavingDatos(true);
+    setDatosError(null);
+    setDatosSaved(false);
+    try {
+      const payload = {
+        nombre: nombre.trim(),
+        telefono: telefonoLocal.trim(),
+        discord_usuario: discordLocal.trim() || null,
+      };
+      await updateProfile(profile.id, payload, accessToken);
+      if (onProfileUpdated) onProfileUpdated(payload);
+      setDatosSaved(true);
+      setTimeout(() => setDatosSaved(false), 2500);
+    } catch (err) {
+      setDatosError(err.message || "No se pudieron guardar los cambios");
+    } finally {
+      setSavingDatos(false);
+    }
+  };
 
   if (showTermsPage) {
     return <TermsPageView onBack={() => setShowTermsPage(false)} />;
@@ -3426,31 +3555,66 @@ function ConfiguracionView({ onBack, themeName, onSetTheme, nombre, setNombre, a
       {profile && (
         <div className="rounded-2xl px-5 py-4 mb-4" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
           <span className="text-[11px] tracking-wide font-medium mb-3 block" style={{ color: C.textDim }}>MIS DATOS</span>
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs" style={{ color: C.textDim }}>Email</span>
-            <span className="text-sm" style={{ color: C.text }}>{profile.email || "—"}</span>
+
+          <div className="mb-3">
+            <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>NOMBRE</label>
+            <input
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              placeholder="Tu nombre"
+              className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
+              style={{ backgroundColor: C.cardAlt, color: C.text, border: `1px solid ${C.border}` }}
+            />
           </div>
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs" style={{ color: C.textDim }}>Teléfono</span>
-            <span className="text-sm" style={{ color: C.text }}>{profile.telefono || "—"}</span>
+
+          <div className="mb-3">
+            <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>EMAIL</label>
+            <input
+              value={profile.email || ""}
+              disabled
+              className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none opacity-60"
+              style={{ backgroundColor: C.cardAlt, color: C.text, border: `1px solid ${C.border}` }}
+            />
           </div>
-          <div className="flex items-center justify-between">
-            <span className="text-xs" style={{ color: C.textDim }}>Usuario de Discord</span>
-            <span className="text-sm" style={{ color: C.text }}>{profile.discord_usuario || "—"}</span>
+
+          <div className="mb-3">
+            <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>TELÉFONO</label>
+            <input
+              value={telefonoLocal}
+              onChange={(e) => setTelefonoLocal(e.target.value)}
+              placeholder="+54 9 11 1234-5678"
+              className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
+              style={{ backgroundColor: C.cardAlt, color: C.text, border: `1px solid ${C.border}` }}
+            />
           </div>
+
+          <div className="mb-4">
+            <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>USUARIO DE DISCORD</label>
+            <input
+              value={discordLocal}
+              onChange={(e) => setDiscordLocal(e.target.value)}
+              placeholder="tu_usuario"
+              className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
+              style={{ backgroundColor: C.cardAlt, color: C.text, border: `1px solid ${C.border}` }}
+            />
+          </div>
+
+          <button
+            onClick={handleSaveDatos}
+            disabled={savingDatos}
+            className="w-full rounded-xl py-3 text-sm font-semibold"
+            style={{ backgroundColor: C.green, color: "#08090B" }}
+          >
+            {savingDatos ? "Guardando..." : "Guardar cambios"}
+          </button>
+          {datosSaved && (
+            <p className="text-[12px] text-center mt-2 font-medium" style={{ color: C.green }}>¡Datos guardados!</p>
+          )}
+          {datosError && (
+            <p className="text-[12px] text-center mt-2" style={{ color: C.red }}>{datosError}</p>
+          )}
         </div>
       )}
-
-      <div className="mb-4">
-        <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>NOMBRE</label>
-        <input
-          value={nombre}
-          onChange={(e) => setNombre(e.target.value)}
-          placeholder="Tu nombre"
-          className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
-          style={{ backgroundColor: C.cardAlt, color: C.text, border: `1px solid ${C.border}` }}
-        />
-      </div>
 
       <div className="rounded-2xl px-5 py-4 mb-3" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
         <span className="text-sm font-medium mb-3 block" style={{ color: C.text }}>
@@ -4304,6 +4468,9 @@ export default function App() {
               isAdmin={isAdmin}
               onOpenUsuarios={() => setSpecialView("usuarios")}
               accessToken={session.accessToken}
+              onProfileUpdated={(payload) =>
+                setSession((s) => ({ ...s, profile: { ...s.profile, ...payload } }))
+              }
             />
           )}
         </div>
@@ -4317,6 +4484,12 @@ export default function App() {
           existingSignal={editingSignal}
           onClose={() => setEditingSignal(null)}
           onCreated={loadSignals}
+          onDeleted={() => {
+            setEditingSignal(null);
+            setSelected(null);
+            setView("list");
+            loadSignals();
+          }}
         />
       )}
       {needsPersonalData && (
