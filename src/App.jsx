@@ -2608,33 +2608,44 @@ function RachaDiaria({ signals }) {
     dias.push(d);
   }
 
-  const resultadoDelDia = (dia) => {
+  const resultadosDelDia = (dia) => {
     const siguiente = new Date(dia);
     siguiente.setDate(siguiente.getDate() + 1);
-    const delDia = signals.filter((s) => {
-      if (!s.createdAt) return false;
-      const f = new Date(s.createdAt);
-      return f >= dia && f < siguiente;
-    });
-    if (delDia.some((s) => s.estado === "perdida")) return "perdida";
-    if (delDia.some((s) => s.estado === "ganada")) return "ganada";
-    return "sin-trades";
+    return signals
+      .filter((s) => {
+        if (!s.createdAt) return false;
+        if (s.estado !== "ganada" && s.estado !== "perdida") return false;
+        const f = new Date(s.createdAt);
+        return f >= dia && f < siguiente;
+      })
+      .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+      .map((s) => s.estado);
   };
 
   return (
     <div className="rounded-2xl px-4 py-4 mb-4" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
       <div className="text-[11px] tracking-widest font-semibold mb-3" style={{ color: C.textDim }}>
-        ÚLTIMOS 10 DÍAS
+        RESUMEN DE TRADES
       </div>
       <div className="flex items-end justify-between">
         {dias.map((d, i) => {
-          const resultado = resultadoDelDia(d);
+          const resultados = resultadosDelDia(d);
           return (
-            <div key={i} className="flex flex-col items-center gap-1.5">
-              {resultado === "ganada" && <Check size={16} color={C.green} strokeWidth={3} />}
-              {resultado === "perdida" && <X size={16} color={C.red} strokeWidth={3} />}
-              {resultado === "sin-trades" && <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: C.border }} />}
-              <span className="text-[9px]" style={{ color: C.textDim }}>{d.getDate()}</span>
+            <div key={i} className="flex flex-col items-center gap-1">
+              <div className="flex flex-col-reverse items-center gap-1 min-h-[18px] justify-start">
+                {resultados.length === 0 ? (
+                  <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: C.border }} />
+                ) : (
+                  resultados.map((r, j) =>
+                    r === "ganada" ? (
+                      <Check key={j} size={14} color={C.green} strokeWidth={3} />
+                    ) : (
+                      <X key={j} size={14} color={C.red} strokeWidth={3} />
+                    )
+                  )
+                )}
+              </div>
+              <span className="text-[9px] mt-1" style={{ color: C.textDim }}>{d.getDate()}</span>
             </div>
           );
         })}
@@ -2701,8 +2712,6 @@ function InicioDashboard({ signals, isAdmin, onOpenSignal, onNuevaSenal, onNavig
           </div>
         )}
       </div>
-
-      <RachaDiaria signals={signals} />
 
       {!profile?.vitalicio && (
         <button
@@ -2779,7 +2788,7 @@ function InicioDashboard({ signals, isAdmin, onOpenSignal, onNuevaSenal, onNavig
 
       {/* Novedades importantes */}
       {novedadDestacada && (
-        <div className="rounded-2xl px-5 py-4" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
+        <div className="rounded-2xl px-5 py-4 mb-4" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
           <div className="flex items-start gap-3">
             <Bell size={18} color={C.green} className="mt-0.5 shrink-0" />
             <div>
@@ -2791,6 +2800,8 @@ function InicioDashboard({ signals, isAdmin, onOpenSignal, onNuevaSenal, onNavig
           </div>
         </div>
       )}
+
+      <RachaDiaria signals={signals} />
     </div>
   );
 }
