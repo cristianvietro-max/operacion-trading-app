@@ -621,18 +621,22 @@ function CopyField({ label, value, formatted, color }) {
 function SignalCard({ signal, onOpen, compact }) {
   const estado = ESTADO_STYLES[signal.estado];
   const borderColor = signal.estado === "pendiente" ? "#F0B429" : C.border;
+  const isClosed = ["ganada", "perdida", "descartada"].includes(signal.estado);
 
   if (compact) {
     return (
       <button
         onClick={() => onOpen(signal)}
         className="text-left rounded-2xl overflow-hidden transition-shadow"
-        style={{ backgroundColor: C.card, border: `1px solid ${borderColor}` }}
+        style={{ backgroundColor: C.card, border: `1px solid ${borderColor}`, opacity: isClosed ? 0.72 : 1 }}
       >
         <div className="px-3 pt-2.5 pb-2" style={{ backgroundColor: C.cardAlt, borderBottom: `1px solid ${C.borderSoft}` }}>
           <div className="flex items-center justify-between mb-1.5">
-            <span className="font-semibold text-[13px]" style={{ color: C.text }}>{signal.par}</span>
-            <span className="text-[10px] font-bold" style={{ color: signal.direccion === "venta" ? C.red : C.green }}>
+            <span className="font-semibold text-[13px]" style={{ color: isClosed ? C.textDim : C.text }}>{signal.par}</span>
+            <span
+              className="text-[10px] font-bold"
+              style={{ color: isClosed ? C.textDim : signal.direccion === "venta" ? C.red : C.green }}
+            >
               {signal.direccion === "venta" ? "VENTA" : "COMPRA"}
             </span>
           </div>
@@ -640,11 +644,11 @@ function SignalCard({ signal, onOpen, compact }) {
             {signal.estado === "ganada" && <ThumbsUp size={14} color={C.green} />}
             {signal.estado === "perdida" && <ThumbsDown size={14} color={C.red} />}
             {signal.estado !== "ganada" && signal.estado !== "perdida" && (
-              <span className="text-[10px] font-medium" style={{ color: estado.color }}>{estado.label}</span>
+              <span className="text-[10px] font-medium" style={{ color: isClosed ? C.textDim : estado.color }}>{estado.label}</span>
             )}
           </div>
         </div>
-        <div className="px-2 pt-2">
+        <div className="px-2 pt-2" style={{ filter: isClosed ? "grayscale(1)" : "none" }}>
           <ChartImage imagenUrl={signal.imagenUrl} height={72} />
         </div>
         <div className="px-3 pt-1.5 pb-2.5">
@@ -852,11 +856,12 @@ function DetailView({ signal, onBack, risk, onEdit, isAdmin }) {
 
   return (
     <div className="max-w-md mx-auto">
-      <div className="flex items-center justify-between gap-3 mb-5">
-        <button onClick={onBack} className="flex items-center gap-1.5">
-          <ArrowLeft size={20} color={C.text} />
-          <span className="text-sm font-medium" style={{ color: C.text }}>Volver</span>
-        </button>
+      <button onClick={onBack} className="flex items-center gap-1.5 mb-2">
+        <ArrowLeft size={19} color={C.textDim} />
+        <span className="text-[13px] font-medium" style={{ color: C.textDim }}>Volver</span>
+      </button>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-xl font-bold" style={{ color: C.text }}>Operación #{signal.id}</h1>
         {isAdmin && (
           <button
             onClick={onEdit}
@@ -868,10 +873,9 @@ function DetailView({ signal, onBack, risk, onEdit, isAdmin }) {
           </button>
         )}
       </div>
-      <div className="text-[15px] font-semibold mb-4" style={{ color: C.text }}>Detalles de Operación #{signal.id}</div>
 
       <div className="flex items-start justify-between mb-1">
-        <h1 className="text-3xl font-bold" style={{ color: C.text }}>{signal.par}</h1>
+        <h2 className="text-3xl font-bold" style={{ color: C.text }}>{signal.par}</h2>
         <span
           className="px-4 py-1.5 rounded-full text-xs font-semibold"
           style={{
@@ -898,9 +902,16 @@ function DetailView({ signal, onBack, risk, onEdit, isAdmin }) {
         </div>
         <CopyField label="PRECIO ENTRADA" value={signal.entrada} formatted={formatPrice(signal.entrada)} />
       </div>
-      <div className="flex gap-3 mb-5">
+      <div className="flex gap-3 mb-4">
         <CopyField label="STOP LOSS" value={signal.sl} formatted={formatPrice(signal.sl)} color={C.red} />
         <CopyField label="TAKE PROFIT" value={signal.tp} formatted={formatPrice(signal.tp)} color={C.green} />
+      </div>
+
+      <div
+        className="rounded-xl px-4 py-3 mb-5 text-[12px] text-center"
+        style={{ backgroundColor: "rgba(240,180,41,0.12)", color: "#F0B429", border: "1px solid rgba(240,180,41,0.4)" }}
+      >
+        ⚠️ Respetá tu gestión de riesgo en cada operación. No intentes "salvarte" alargando un trade en contra tuyo — cerrá según tu plan. Usá siempre Stop Loss.
       </div>
 
       {isAdmin && <CopySignalButton signal={signal} />}
@@ -1618,16 +1629,7 @@ function TermsPageView({ onBack }) {
   return (
     <div className="fixed inset-0 z-[60] overflow-y-auto px-6 py-8" style={{ backgroundColor: C.bg }}>
       <div className="max-w-md mx-auto">
-        <button onClick={onBack} className="flex items-center gap-2 mb-5">
-          <ArrowLeft size={20} color={C.text} />
-          <span className="text-sm font-medium" style={{ color: C.text }}>Volver</span>
-        </button>
-        <div className="flex items-center gap-2 mb-5">
-          <ShieldAlert size={18} color={C.blue} />
-          <span className="text-[13px] font-semibold tracking-wide" style={{ color: C.text }}>
-            AVISO LEGAL Y DESLINDE DE RESPONSABILIDAD
-          </span>
-        </div>
+        <ScreenHeader title="Aviso Legal y Deslinde de Responsabilidad" onBack={onBack} />
         <DisclaimerContent />
       </div>
     </div>
@@ -2187,12 +2189,7 @@ function FlyerAdminView({ onBack, accessToken }) {
 
   return (
     <div className="max-w-md mx-auto">
-      <div className="flex items-center gap-3 mb-4">
-        <button onClick={onBack} className="p-1 -ml-1">
-          <ArrowLeft size={20} color={C.text} />
-        </button>
-        <span className="text-[15px] font-semibold" style={{ color: C.text }}>Flyer / Promociones</span>
-      </div>
+      <ScreenHeader title="Flyer / Promociones" onBack={onBack} />
 
       {loading && <p className="text-sm text-center py-6" style={{ color: C.textDim }}>Cargando...</p>}
 
@@ -2419,7 +2416,7 @@ function InicioDashboard({ signals, isAdmin, onOpenSignal, onNuevaSenal, onNavig
 
   const subButtons = [
     { label: "Herramientas", icon: Wrench, onClick: () => onNavigate("herramientas") },
-    { label: "Formación", icon: GraduationCap, onClick: () => onNavigate("mas", { masSection: "formacion" }) },
+    { label: "Tutoriales", icon: GraduationCap, onClick: () => onNavigate("mas", { masSection: "formacion" }) },
     { label: "Comunidad Operación Trading", icon: Users, onClick: () => onNavigate("mas", { masSection: "comunidad" }) },
   ];
 
@@ -2641,12 +2638,7 @@ function MasMenu({ onSelect, onBack, isAdmin, pendingTotal }) {
     : MAS_SECTIONS;
   return (
     <div className="max-w-md mx-auto">
-      <div className="flex items-center gap-3 mb-4">
-        <button onClick={onBack} className="p-1 -ml-1">
-          <ArrowLeft size={20} color={C.text} />
-        </button>
-        <span className="text-[15px] font-semibold" style={{ color: C.text }}>Más</span>
-      </div>
+      <ScreenHeader title="Más" onBack={onBack} />
       <div className="flex flex-col gap-3">
         {sections.map((s) => {
           const Icon = s.icon;
@@ -2678,38 +2670,36 @@ function MasMenu({ onSelect, onBack, isAdmin, pendingTotal }) {
   );
 }
 
+function ScreenHeader({ title, onBack }) {
+  return (
+    <div className="mb-5">
+      <button onClick={onBack} className="flex items-center gap-1.5 mb-2">
+        <ArrowLeft size={19} color={C.textDim} />
+        <span className="text-[13px] font-medium" style={{ color: C.textDim }}>Volver</span>
+      </button>
+      <h1 className="text-xl font-bold" style={{ color: C.text }}>{title}</h1>
+    </div>
+  );
+}
+
 function PillarMenu({ title, items, onSelect, onBack }) {
   return (
     <div className="max-w-md mx-auto">
-      {onBack ? (
-        <div className="flex items-center gap-3 mb-4">
-          <button onClick={onBack} className="p-1 -ml-1">
-            <ArrowLeft size={20} color={C.text} />
-          </button>
-          <span className="text-[15px] font-semibold" style={{ color: C.text }}>{title}</span>
-        </div>
-      ) : (
-        <div className="text-[11px] tracking-widest font-semibold mb-4 text-center" style={{ color: C.textDim }}>
-          {title.toUpperCase()}
-        </div>
-      )}
-      <div className="flex flex-col gap-3">
+      <ScreenHeader title={title} onBack={onBack} />
+      <div className="grid grid-cols-2 gap-3">
         {items.map((item) => {
           const unlocked = item.real || item.external;
           return (
             <button
               key={item.id}
               onClick={() => onSelect(item.id)}
-              className="flex items-center justify-between rounded-2xl px-5 py-4"
+              className="h-28 rounded-2xl px-3 flex flex-col items-center justify-center gap-2 text-center"
               style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
             >
-              <span className="font-medium text-[14px]" style={{ color: unlocked ? C.text : C.textDim }}>
+              {!unlocked && <Lock size={16} color={C.textDim} />}
+              <span className="font-medium text-[13px] leading-tight" style={{ color: unlocked ? C.text : C.textDim }}>
                 {item.label}
               </span>
-              <div className="flex items-center gap-2">
-                {!unlocked && <Lock size={13} color={C.textDim} />}
-                <ArrowLeft size={16} color={C.textDim} style={{ transform: "rotate(180deg)" }} />
-              </div>
             </button>
           );
         })}
@@ -2721,12 +2711,7 @@ function PillarMenu({ title, items, onSelect, onBack }) {
 function PillarComingSoon({ label, onBack }) {
   return (
     <div className="max-w-md mx-auto">
-      <div className="flex items-center gap-3 mb-4">
-        <button onClick={onBack} className="p-1 -ml-1">
-          <ArrowLeft size={20} color={C.text} />
-        </button>
-        <span className="text-[15px] font-semibold" style={{ color: C.text }}>{label}</span>
-      </div>
+      <ScreenHeader title={label} onBack={onBack} />
       <div className="flex flex-col items-center justify-center py-16 text-center">
         <Lock size={22} color={C.textDim} className="mb-3" />
         <span className="text-sm" style={{ color: C.textDim }}>Próximamente</span>
@@ -2738,12 +2723,7 @@ function PillarComingSoon({ label, onBack }) {
 function PillarExternal({ label, url, onBack }) {
   return (
     <div className="max-w-md mx-auto">
-      <div className="flex items-center gap-3 mb-4">
-        <button onClick={onBack} className="p-1 -ml-1">
-          <ArrowLeft size={20} color={C.text} />
-        </button>
-        <span className="text-[15px] font-semibold" style={{ color: C.text }}>{label}</span>
-      </div>
+      <ScreenHeader title={label} onBack={onBack} />
       <div className="rounded-2xl p-6 text-center" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
         <p className="text-sm mb-4" style={{ color: C.textDim }}>
           Te llevamos a una herramienta externa confiable para esto.
@@ -2765,12 +2745,7 @@ function PillarExternal({ label, url, onBack }) {
 function CalendarioEconomicoWrap({ themeName, onBack }) {
   return (
     <div className="max-w-md mx-auto">
-      <div className="flex items-center gap-3 mb-4">
-        <button onClick={onBack} className="p-1 -ml-1">
-          <ArrowLeft size={20} color={C.text} />
-        </button>
-        <span className="text-[15px] font-semibold" style={{ color: C.text }}>Calendario económico</span>
-      </div>
+      <ScreenHeader title="Calendario económico" onBack={onBack} />
       <NoticiasView themeName={themeName} />
     </div>
   );
@@ -3055,12 +3030,7 @@ function UsuariosView({ onBack, accessToken, onApproved }) {
 
   return (
     <div className="max-w-md mx-auto">
-      <div className="flex items-center gap-3 mb-4">
-        <button onClick={onBack} className="p-1 -ml-1">
-          <ArrowLeft size={20} color={C.text} />
-        </button>
-        <span className="text-[15px] font-semibold" style={{ color: C.text }}>Usuarios</span>
-      </div>
+      <ScreenHeader title="Usuarios" onBack={onBack} />
 
       {loading && <p className="text-sm text-center py-10" style={{ color: C.textDim }}>Cargando usuarios...</p>}
       {!loading && error && <p className="text-sm text-center py-10" style={{ color: C.red }}>{error}</p>}
@@ -3195,12 +3165,7 @@ function ConfiguracionView({ onBack, themeName, onSetTheme, nombre, setNombre, a
 
   return (
     <div className="max-w-md mx-auto">
-      <div className="flex items-center gap-3 mb-5">
-        <button onClick={onBack} className="p-1 -ml-1">
-          <ArrowLeft size={20} color={C.text} />
-        </button>
-        <span className="text-[15px] font-semibold" style={{ color: C.text }}>Configuración</span>
-      </div>
+      <ScreenHeader title="Configuración" onBack={onBack} />
 
       <div className="flex flex-col items-center mb-6">
         <label className="relative cursor-pointer">
@@ -3452,12 +3417,7 @@ function HistorialComprobantesModal({ userId, accessToken, onClose }) {
 function ClasesGrabadasView({ onBack }) {
   return (
     <div className="max-w-md mx-auto">
-      <div className="flex items-center gap-3 mb-4">
-        <button onClick={onBack} className="p-1 -ml-1">
-          <ArrowLeft size={20} color={C.text} />
-        </button>
-        <span className="text-[15px] font-semibold" style={{ color: C.text }}>Clases grabadas</span>
-      </div>
+      <ScreenHeader title="Clases grabadas" onBack={onBack} />
       <div className="flex flex-col gap-3">
         {CLASES_GRABADAS.map((t, i) => (
           <a
@@ -3491,12 +3451,7 @@ function ClasesGrabadasView({ onBack }) {
 function BonosView({ onBack }) {
   return (
     <div className="max-w-md mx-auto">
-      <div className="flex items-center gap-3 mb-4">
-        <button onClick={onBack} className="p-1 -ml-1">
-          <ArrowLeft size={20} color={C.text} />
-        </button>
-        <span className="text-[15px] font-semibold" style={{ color: C.text }}>Bonos</span>
-      </div>
+      <ScreenHeader title="Bonos" onBack={onBack} />
       <div className="flex flex-col gap-3">
         {BONOS.map((b, i) => (
           <div
@@ -3519,12 +3474,7 @@ function BonosView({ onBack }) {
 function NovedadesSubView({ onBack, isAdmin }) {
   return (
     <div className="max-w-md mx-auto">
-      <div className="flex items-center gap-3 mb-4">
-        <button onClick={onBack} className="p-1 -ml-1">
-          <ArrowLeft size={20} color={C.text} />
-        </button>
-        <span className="text-[15px] font-semibold" style={{ color: C.text }}>Novedades</span>
-      </div>
+      <ScreenHeader title="Novedades" onBack={onBack} />
       <NovedadesView isAdmin={isAdmin} />
     </div>
   );
@@ -3533,12 +3483,7 @@ function NovedadesSubView({ onBack, isAdmin }) {
 function ComunidadSubView({ onBack }) {
   return (
     <div className="max-w-md mx-auto">
-      <div className="flex items-center gap-3 mb-4">
-        <button onClick={onBack} className="p-1 -ml-1">
-          <ArrowLeft size={20} color={C.text} />
-        </button>
-        <span className="text-[15px] font-semibold" style={{ color: C.text }}>Comunidad</span>
-      </div>
+      <ScreenHeader title="Comunidad" onBack={onBack} />
       <ComunidadView />
     </div>
   );
@@ -3870,11 +3815,12 @@ export default function App() {
           <>
           {tab === "senales" && view === "list" && (
             <>
+              <button onClick={goHome} className="flex items-center gap-1.5 mb-2">
+                <ArrowLeft size={19} color={C.textDim} />
+                <span className="text-[13px] font-medium" style={{ color: C.textDim }}>Volver</span>
+              </button>
               <div className="flex items-center justify-between mb-4">
-                <button onClick={goHome} className="flex items-center gap-1.5">
-                  <ArrowLeft size={20} color={C.text} />
-                  <span className="text-sm font-medium" style={{ color: C.text }}>Volver</span>
-                </button>
+                <h1 className="text-xl font-bold" style={{ color: C.text }}>Señales</h1>
                 {isAdmin && (
                   <button
                     onClick={() => setShowAdminForm(true)}
@@ -3885,12 +3831,6 @@ export default function App() {
                     <Plus size={18} color="#08090B" />
                   </button>
                 )}
-              </div>
-              <div
-                className="text-[11px] tracking-widest font-semibold text-center mb-4"
-                style={{ color: C.textDim }}
-              >
-                SEÑALES
               </div>
               {(() => {
                 const daysLeft = daysUntilVencimiento(session.profile);
@@ -3973,7 +3913,7 @@ export default function App() {
           {tab === "senales" && view === "detail" && (
             <DetailView
               signal={selected}
-              onBack={goHome}
+              onBack={() => setView("list")}
               risk={risk}
               onEdit={() => setEditingSignal(selected)}
               isAdmin={isAdmin}
@@ -4034,12 +3974,7 @@ export default function App() {
 
           {tab === "mas" && masSection === "administracion" && isAdmin && adminPanelView === null && (
             <div className="max-w-md mx-auto">
-              <div className="flex items-center gap-3 mb-4">
-                <button onClick={() => setMasSection(null)} className="p-1 -ml-1">
-                  <ArrowLeft size={20} color={C.text} />
-                </button>
-                <span className="text-[15px] font-semibold" style={{ color: C.text }}>Administración</span>
-              </div>
+              <ScreenHeader title="Administración" onBack={() => setMasSection(null)} />
               <div className="flex flex-col gap-3">
                 <button
                   onClick={() => setAdminPanelView("usuarios")}
@@ -4089,7 +4024,7 @@ export default function App() {
           )}
 
           {tab === "mas" && masSection === "formacion" && formacionView === null && (
-            <PillarMenu title="Formación" items={ACADEMIA_ITEMS} onSelect={setFormacionView} onBack={goHome} />
+            <PillarMenu title="Tutoriales" items={ACADEMIA_ITEMS} onSelect={setFormacionView} onBack={goHome} />
           )}
           {tab === "mas" && masSection === "formacion" && formacionView === "videos" && (
             <ClasesGrabadasView onBack={goHome} />
@@ -4143,15 +4078,7 @@ export default function App() {
           )}
           {tab === "mas" && masSection === "soporte" && (
             <div className="max-w-md mx-auto">
-              <div className="flex items-center gap-1.5 mb-4">
-                <button onClick={goHome} className="flex items-center gap-1.5">
-                  <ArrowLeft size={20} color={C.text} />
-                  <span className="text-sm font-medium" style={{ color: C.text }}>Volver</span>
-                </button>
-              </div>
-              <div className="text-[11px] tracking-widest font-semibold mb-4 text-center" style={{ color: C.textDim }}>
-                SOPORTE
-              </div>
+              <ScreenHeader title="Soporte" onBack={goHome} />
               <div className="rounded-2xl p-6 text-center" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
                 <p className="text-sm mb-4" style={{ color: C.textDim }}>
                   ¿Tenés una duda o un problema con la app? Escribinos directo por WhatsApp.
