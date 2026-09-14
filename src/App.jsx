@@ -683,18 +683,24 @@ function SignalCard({ signal, onOpen, compact }) {
               {signal.direccion === "venta" ? "VENTA" : "COMPRA"}
             </span>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center">
             {signal.estado === "ganada" && (
-              <>
+              <div
+                className="flex items-center gap-1 px-2 py-0.5 rounded-full"
+                style={{ backgroundColor: isClosed ? C.borderSoft : C.greenSoft }}
+              >
                 <ThumbsUp size={14} color={C.green} />
-                <span className="text-[10px] font-medium" style={{ color: isClosed ? C.textDim : C.green }}>Ganada</span>
-              </>
+                <span className="font-semibold text-[13px] uppercase" style={{ color: isClosed ? C.textDim : C.green }}>Ganada</span>
+              </div>
             )}
             {signal.estado === "perdida" && (
-              <>
+              <div
+                className="flex items-center gap-1 px-2 py-0.5 rounded-full"
+                style={{ backgroundColor: isClosed ? C.borderSoft : C.redSoft }}
+              >
                 <ThumbsDown size={14} color={C.red} />
-                <span className="text-[10px] font-medium" style={{ color: isClosed ? C.textDim : C.red }}>Perdida</span>
-              </>
+                <span className="font-semibold text-[13px] uppercase" style={{ color: isClosed ? C.textDim : C.red }}>Perdida</span>
+              </div>
             )}
             {signal.estado !== "ganada" && signal.estado !== "perdida" && (
               <span className="text-[10px] font-medium" style={{ color: isClosed ? C.textDim : estado.color }}>{estado.label}</span>
@@ -729,20 +735,28 @@ function SignalCard({ signal, onOpen, compact }) {
           <div className="text-[13px] font-semibold" style={{ color: signal.direccion === "venta" ? C.red : C.green }}>
             {signal.direccion === "venta" ? "VENTA" : "COMPRA"}
           </div>
-          <div className="text-xs mt-0.5 flex items-center justify-end gap-1" style={{ color: estado.color }}>
+          <div className="mt-0.5 flex items-center justify-end">
             {signal.estado === "ganada" && (
-              <>
-                <ThumbsUp size={14} color={C.green} />
-                <span>Ganada</span>
-              </>
+              <div
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full"
+                style={{ backgroundColor: isClosed ? C.borderSoft : C.greenSoft }}
+              >
+                <ThumbsUp size={15} color={C.green} />
+                <span className="font-semibold text-[15px] uppercase" style={{ color: isClosed ? C.textDim : C.green }}>Ganada</span>
+              </div>
             )}
             {signal.estado === "perdida" && (
-              <>
-                <ThumbsDown size={14} color={C.red} />
-                <span>Perdida</span>
-              </>
+              <div
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full"
+                style={{ backgroundColor: isClosed ? C.borderSoft : C.redSoft }}
+              >
+                <ThumbsDown size={15} color={C.red} />
+                <span className="font-semibold text-[15px] uppercase" style={{ color: isClosed ? C.textDim : C.red }}>Perdida</span>
+              </div>
             )}
-            {signal.estado !== "ganada" && signal.estado !== "perdida" && estado.label}
+            {signal.estado !== "ganada" && signal.estado !== "perdida" && (
+              <span className="text-xs" style={{ color: estado.color }}>{estado.label}</span>
+            )}
           </div>
         </div>
       </div>
