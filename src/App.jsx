@@ -222,18 +222,17 @@ async function uploadFlyerImage(file) {
   return `${SUPABASE_URL}/storage/v1/object/public/flyers/${filename}`;
 }
 
-async function fetchActiveFlyer() {
+async function fetchActiveFlyers() {
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/flyers?activo=eq.true&select=*&order=created_at.desc&limit=1`,
+    `${SUPABASE_URL}/rest/v1/flyers?activo=eq.true&select=*&order=created_at.desc&limit=3`,
     { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
   );
-  if (!res.ok) return null;
-  const rows = await res.json();
-  return rows[0] || null;
+  if (!res.ok) return [];
+  return res.json();
 }
 
-async function deactivateAllFlyers(accessToken) {
-  await fetch(`${SUPABASE_URL}/rest/v1/flyers?activo=eq.true`, {
+async function deactivateFlyer(id, accessToken) {
+  await fetch(`${SUPABASE_URL}/rest/v1/flyers?id=eq.${id}`, {
     method: "PATCH",
     headers: {
       apikey: SUPABASE_ANON_KEY,
@@ -244,8 +243,7 @@ async function deactivateAllFlyers(accessToken) {
   }).catch(() => {});
 }
 
-async function createFlyer(imagenUrl, enlace, accessToken) {
-  await deactivateAllFlyers(accessToken);
+async function createFlyer(imagenUrl, enlace, texto, accessToken) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/flyers`, {
     method: "POST",
     headers: {
@@ -254,7 +252,7 @@ async function createFlyer(imagenUrl, enlace, accessToken) {
       "Content-Type": "application/json",
       Prefer: "return=representation",
     },
-    body: JSON.stringify({ imagen_url: imagenUrl, enlace: enlace || null, activo: true }),
+    body: JSON.stringify({ imagen_url: imagenUrl, enlace: enlace || null, texto: texto || null, activo: true }),
   });
   if (!res.ok) throw new Error("No se pudo crear el flyer");
   return res.json();
@@ -2243,16 +2241,25 @@ function PersonalDataPopup({ profile, accessToken, onClose, onSaved }) {
   );
 }
 
-function FlyerPopup({ flyer, onClose }) {
+function FlyerPopup({ flyers, onClose }) {
+  const [index, setIndex] = useState(0);
+  const flyer = flyers[index];
+  const esUltimo = index >= flyers.length - 1;
+
+  const avanzar = () => {
+    if (esUltimo) onClose();
+    else setIndex((i) => i + 1);
+  };
+
   return (
     <div
       className="fixed inset-0 z-[70] flex items-center justify-center p-6"
       style={{ backgroundColor: "rgba(0,0,0,0.75)" }}
-      onClick={onClose}
+      onClick={avanzar}
     >
       <div className="w-full max-w-sm relative" onClick={(e) => e.stopPropagation()}>
         <button
-          onClick={onClose}
+          onClick={avanzar}
           className="absolute -top-3 -right-3 w-8 h-8 rounded-full flex items-center justify-center z-10"
           style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
         >
@@ -2260,37 +2267,60 @@ function FlyerPopup({ flyer, onClose }) {
         </button>
         <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
           <img src={flyer.imagen_url} alt="Novedad" className="w-full object-cover" />
-          {flyer.enlace && (
+          {(flyer.texto || flyer.enlace) && (
             <div className="p-4">
-              <a
-                href={flyer.enlace}
-                target="_blank"
-                rel="noreferrer"
-                onClick={onClose}
-                className="block w-full text-center rounded-xl py-3 text-sm font-semibold"
-                style={{ backgroundColor: C.green, color: "#08090B" }}
-              >
-                Ver más
-              </a>
+              {flyer.texto && (
+                <p className="text-sm text-center mb-3" style={{ color: C.text }}>{flyer.texto}</p>
+              )}
+              {flyer.enlace && (
+                <a
+                  href={flyer.enlace}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={avanzar}
+                  className="block w-full text-center rounded-xl py-3 text-sm font-semibold"
+                  style={{ backgroundColor: C.green, color: "#08090B" }}
+                >
+                  Ver más
+                </a>
+              )}
             </div>
           )}
         </div>
+        {flyers.length > 1 && (
+          <div className="flex items-center justify-center gap-1.5 mt-4">
+            {flyers.map((_, i) => (
+              <div
+                key={i}
+                className="rounded-full"
+                style={{
+                  width: i === index ? 16 : 6,
+                  height: 6,
+                  backgroundColor: i === index ? "#fff" : "rgba(255,255,255,0.4)",
+                  transition: "width 0.2s",
+                }}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
 function FlyerAdminView({ onBack, accessToken }) {
-  const [current, setCurrent] = useState(null);
+  const [current, setCurrent] = useState([]);
   const [loading, setLoading] = useState(true);
   const [file, setFile] = useState(null);
   const [enlace, setEnlace] = useState("");
+  const [texto, setTexto] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [quitandoId, setQuitandoId] = useState(null);
 
   const load = () => {
     setLoading(true);
-    fetchActiveFlyer()
+    fetchActiveFlyers()
       .then(setCurrent)
       .finally(() => setLoading(false));
   };
@@ -2305,9 +2335,10 @@ function FlyerAdminView({ onBack, accessToken }) {
     setError(null);
     try {
       const url = await uploadFlyerImage(file);
-      await createFlyer(url, enlace.trim(), accessToken);
+      await createFlyer(url, enlace.trim(), texto.trim(), accessToken);
       setFile(null);
       setEnlace("");
+      setTexto("");
       load();
     } catch (err) {
       setError(err.message || "No se pudo publicar el flyer");
@@ -2316,15 +2347,17 @@ function FlyerAdminView({ onBack, accessToken }) {
     }
   };
 
-  const handleDeactivate = async () => {
-    setSubmitting(true);
+  const handleDeactivate = async (id) => {
+    setQuitandoId(id);
     try {
-      await deactivateAllFlyers(accessToken);
+      await deactivateFlyer(id, accessToken);
       load();
     } finally {
-      setSubmitting(false);
+      setQuitandoId(null);
     }
   };
+
+  const puedeAgregarMas = current.length < 3;
 
   return (
     <div className="max-w-md mx-auto">
@@ -2332,69 +2365,100 @@ function FlyerAdminView({ onBack, accessToken }) {
 
       {loading && <p className="text-sm text-center py-6" style={{ color: C.textDim }}>Cargando...</p>}
 
-      {!loading && current && (
-        <div className="rounded-2xl overflow-hidden mb-5" style={{ backgroundColor: C.card, border: `1px solid ${C.green}` }}>
-          <img src={current.imagen_url} alt="Flyer activo" className="w-full h-40 object-cover" />
-          <div className="px-4 py-3">
-            <div className="text-xs font-semibold mb-2" style={{ color: C.green }}>FLYER ACTIVO AHORA</div>
-            {current.enlace && <div className="text-xs mb-3 truncate" style={{ color: C.textDim }}>{current.enlace}</div>}
-            <button
-              onClick={handleDeactivate}
-              disabled={submitting}
-              className="w-full rounded-xl py-2.5 text-sm font-semibold"
-              style={{ backgroundColor: C.redSoft, color: C.red }}
-            >
-              Quitar flyer (dejar de mostrarlo)
-            </button>
+      {!loading && current.length > 0 && (
+        <div className="mb-5">
+          <div className="text-xs font-semibold mb-3" style={{ color: C.green }}>
+            FLYERS ACTIVOS AHORA ({current.length}/3)
+          </div>
+          <div className="flex flex-col gap-3">
+            {current.map((f) => (
+              <div key={f.id} className="rounded-2xl overflow-hidden" style={{ backgroundColor: C.card, border: `1px solid ${C.green}` }}>
+                <img src={f.imagen_url} alt="Flyer activo" className="w-full h-32 object-cover" />
+                <div className="px-4 py-3">
+                  {f.texto && <p className="text-xs mb-2" style={{ color: C.text }}>{f.texto}</p>}
+                  {f.enlace && <div className="text-xs mb-3 truncate" style={{ color: C.textDim }}>{f.enlace}</div>}
+                  <button
+                    onClick={() => handleDeactivate(f.id)}
+                    disabled={quitandoId === f.id}
+                    className="w-full rounded-xl py-2.5 text-sm font-semibold"
+                    style={{ backgroundColor: C.redSoft, color: C.red }}
+                  >
+                    {quitandoId === f.id ? "Quitando..." : "Quitar este flyer"}
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
-      {!loading && !current && (
+      {!loading && current.length === 0 && (
         <p className="text-sm text-center mb-5" style={{ color: C.textDim }}>No hay ningún flyer activo ahora mismo.</p>
       )}
 
-      <div className="text-[11px] tracking-widest font-semibold mb-3" style={{ color: C.textDim }}>
-        {current ? "REEMPLAZAR POR UNO NUEVO" : "PUBLICAR UN FLYER"}
-      </div>
+      {puedeAgregarMas ? (
+        <>
+          <div className="text-[11px] tracking-widest font-semibold mb-3" style={{ color: C.textDim }}>
+            PUBLICAR UN NUEVO FLYER
+          </div>
 
-      <label
-        className="flex items-center justify-center gap-2 rounded-xl py-6 cursor-pointer mb-3"
-        style={{ backgroundColor: C.cardAlt, border: `1px dashed ${C.border}` }}
-      >
-        <UploadCloud size={18} color={C.textDim} />
-        <span className="text-sm" style={{ color: C.textDim }}>{file ? file.name : "Elegir imagen del flyer"}</span>
-        <input type="file" accept="image/*" className="hidden" onChange={(e) => setFile(e.target.files?.[0] || null)} />
-      </label>
+          <label
+            className="flex items-center justify-center gap-2 rounded-xl py-6 cursor-pointer mb-3"
+            style={{ backgroundColor: C.cardAlt, border: `1px dashed ${C.border}` }}
+          >
+            <UploadCloud size={18} color={C.textDim} />
+            <span className="text-sm" style={{ color: C.textDim }}>{file ? file.name : "Elegir imagen del flyer"}</span>
+            <input type="file" accept="image/*" className="hidden" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+          </label>
 
-      <div className="mb-4">
-        <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>
-          LINK "VER MÁS" (opcional)
-        </label>
-        <input
-          value={enlace}
-          onChange={(e) => setEnlace(e.target.value)}
-          placeholder="https://..."
-          className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
-          style={{ backgroundColor: C.cardAlt, color: C.text, border: `1px solid ${C.border}` }}
-        />
-      </div>
+          <div className="mb-3">
+            <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>
+              TEXTO (opcional)
+            </label>
+            <textarea
+              value={texto}
+              onChange={(e) => setTexto(e.target.value)}
+              placeholder="Ej: 20% de descuento en el plan X6 esta semana"
+              rows={2}
+              className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none resize-none"
+              style={{ backgroundColor: C.cardAlt, color: C.text, border: `1px solid ${C.border}` }}
+            />
+          </div>
 
-      {error && <p className="text-sm text-center mb-3" style={{ color: C.red }}>{error}</p>}
+          <div className="mb-4">
+            <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>
+              LINK "VER MÁS" (opcional)
+            </label>
+            <input
+              value={enlace}
+              onChange={(e) => setEnlace(e.target.value)}
+              placeholder="https://..."
+              className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
+              style={{ backgroundColor: C.cardAlt, color: C.text, border: `1px solid ${C.border}` }}
+            />
+          </div>
 
-      <button
-        onClick={handlePublish}
-        disabled={!file || submitting}
-        className="w-full rounded-2xl py-4 text-[15px] font-semibold"
-        style={{
-          backgroundColor: file && !submitting ? C.green : C.borderSoft,
-          color: file && !submitting ? "#08090B" : C.textDim,
-        }}
-      >
-        {submitting ? "Publicando..." : "Publicar flyer"}
-      </button>
-      <p className="text-[11px] text-center mt-3" style={{ color: C.textDim }}>
-        Se muestra como un popup apenas alguien abre la app. Al publicar uno nuevo, se reemplaza el anterior.
-      </p>
+          {error && <p className="text-sm text-center mb-3" style={{ color: C.red }}>{error}</p>}
+
+          <button
+            onClick={handlePublish}
+            disabled={!file || submitting}
+            className="w-full rounded-2xl py-4 text-[15px] font-semibold"
+            style={{
+              backgroundColor: file && !submitting ? C.green : C.borderSoft,
+              color: file && !submitting ? "#08090B" : C.textDim,
+            }}
+          >
+            {submitting ? "Publicando..." : "Publicar flyer"}
+          </button>
+          <p className="text-[11px] text-center mt-3" style={{ color: C.textDim }}>
+            Se muestran como un popup apenas alguien abre la app, uno tras otro. Podés tener hasta 3 al mismo tiempo.
+          </p>
+        </>
+      ) : (
+        <p className="text-sm text-center py-4" style={{ color: C.textDim }}>
+          Ya tenés 3 flyers activos, el máximo permitido. Quitá alguno para poder publicar uno nuevo.
+        </p>
+      )}
     </div>
   );
 }
@@ -3168,10 +3232,17 @@ function UsuariosView({ onBack, accessToken, onApproved }) {
     try {
       const hoy = new Date().toISOString().slice(0, 10);
       const meses = c.plan_meses || 3;
+      const owner = users.find((u) => u.id === c.usuario_id);
+      // Si todavía le quedaban días de vigencia (prueba u otra membresía), se los respetamos
+      // sumando la nueva suscripción a partir de esa fecha, no desde hoy.
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const vencimientoActual = owner?.fecha_vencimiento ? new Date(owner.fecha_vencimiento + "T00:00:00") : null;
+      const baseFecha = vencimientoActual && vencimientoActual > today ? owner.fecha_vencimiento : hoy;
       await updateComprobante(c.id, { estado: "aprobado" }, accessToken);
       await updateProfile(
         c.usuario_id,
-        { pago: true, fecha_renovacion: hoy, fecha_vencimiento: addMonths(hoy, meses) },
+        { pago: true, fecha_renovacion: hoy, fecha_vencimiento: addMonths(baseFecha, meses) },
         accessToken
       );
       load();
@@ -3319,6 +3390,10 @@ function UsuariosView({ onBack, accessToken, onApproved }) {
             {comprobantes.map((c) => {
               const owner = users.find((u) => u.id === c.usuario_id);
               const planLabel = PLANES_PRO.find((p) => p.meses === c.plan_meses)?.label;
+              const hoyPreview = new Date();
+              hoyPreview.setHours(0, 0, 0, 0);
+              const vencOwner = owner?.fecha_vencimiento ? new Date(owner.fecha_vencimiento + "T00:00:00") : null;
+              const baseFechaPreview = vencOwner && vencOwner > hoyPreview ? owner.fecha_vencimiento : new Date().toISOString().slice(0, 10);
               return (
                 <div key={c.id} className="rounded-2xl overflow-hidden" style={{ backgroundColor: C.card, border: "1px solid #F0B429" }}>
                   <button onClick={() => setViewingImage(c.imagen_url)} className="w-full">
@@ -3331,7 +3406,8 @@ function UsuariosView({ onBack, accessToken, onApproved }) {
                     <div className="text-xs mb-1" style={{ color: C.textDim }}>{owner?.email || c.usuario_id}</div>
                     {c.plan_meses && (
                       <div className="text-xs mb-3 font-medium" style={{ color: C.green }}>
-                        Plan elegido: {planLabel || `${c.plan_meses} meses`} — vencería el {addMonths(new Date().toISOString().slice(0, 10), c.plan_meses)}
+                        Plan elegido: {planLabel || `${c.plan_meses} meses`} — vencería el {addMonths(baseFechaPreview, c.plan_meses)}
+                        {vencOwner && vencOwner > hoyPreview ? " (respeta sus días vigentes)" : ""}
                       </div>
                     )}
                     {!c.plan_meses && (
@@ -3937,7 +4013,7 @@ export default function App() {
   const [session, setSession] = useState(null); // { accessToken, userId, profile }
   const [restoringSession, setRestoringSession] = useState(true);
   const [showPersonalDataPopup, setShowPersonalDataPopup] = useState(false);
-  const [activeFlyer, setActiveFlyer] = useState(null);
+  const [activeFlyers, setActiveFlyers] = useState([]);
   const [flyerDismissed, setFlyerDismissed] = useState(false);
   const [personalDataDismissed, setPersonalDataDismissed] = useState(false);
   const [tab, setTab] = useState("home");
@@ -4083,7 +4159,7 @@ export default function App() {
 
   useEffect(() => {
     loadSignals();
-    fetchActiveFlyer().then(setActiveFlyer).catch(() => {});
+    fetchActiveFlyers().then(setActiveFlyers).catch(() => {});
   }, []);
 
   const filtered = signals.filter((s) => {
@@ -4504,8 +4580,8 @@ export default function App() {
         />
       )}
 
-      {activeFlyer && !flyerDismissed && !needsPersonalData && (
-        <FlyerPopup flyer={activeFlyer} onClose={() => setFlyerDismissed(true)} />
+      {activeFlyers.length > 0 && !flyerDismissed && !needsPersonalData && (
+        <FlyerPopup flyers={activeFlyers} onClose={() => setFlyerDismissed(true)} />
       )}
 
       <div
