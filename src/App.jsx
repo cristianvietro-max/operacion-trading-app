@@ -61,6 +61,9 @@ const DARK = {
   red: "#F76464",
   redSoft: "rgba(247,100,100,0.14)",
   grey: "#5B6472",
+  warningBg: "rgba(240,180,41,0.14)",
+  warningText: "#F0B429",
+  warningBorder: "rgba(240,180,41,0.45)",
 };
 
 const LIGHT = {
@@ -78,6 +81,9 @@ const LIGHT = {
   red: "#DC2626",
   redSoft: "rgba(220,38,38,0.10)",
   grey: "#9AA3AF",
+  warningBg: "#FEF3C7",
+  warningText: "#92400E",
+  warningBorder: "#F59E0B",
 };
 
 const MEDIO = {
@@ -95,6 +101,9 @@ const MEDIO = {
   red: "#DC2626",
   redSoft: "rgba(220,38,38,0.10)",
   grey: "#9AA3AF",
+  warningBg: "#FBE7B6",
+  warningText: "#7A4A08",
+  warningBorder: "#F0B429",
 };
 
 const C = { ...DARK };
@@ -856,16 +865,18 @@ function DetailView({ signal, onBack, risk, onEdit, isAdmin }) {
 
   return (
     <div className="max-w-md mx-auto">
-      <button onClick={onBack} className="flex items-center gap-1.5 mb-2">
+      <button onClick={onBack} className="flex items-center gap-1.5 mb-3">
         <ArrowLeft size={19} color={C.textDim} />
         <span className="text-[13px] font-medium" style={{ color: C.textDim }}>Volver</span>
       </button>
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold" style={{ color: C.text }}>Operación #{signal.id}</h1>
+      <div className="relative flex items-center justify-center mb-4">
+        <div className="text-[14px] tracking-widest font-bold text-center" style={{ color: C.text }}>
+          OPERACIÓN #{signal.id}
+        </div>
         {isAdmin && (
           <button
             onClick={onEdit}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
+            className="absolute right-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
             style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.border}`, color: C.text }}
           >
             <Pencil size={13} color={C.text} />
@@ -908,8 +919,8 @@ function DetailView({ signal, onBack, risk, onEdit, isAdmin }) {
       </div>
 
       <div
-        className="rounded-xl px-4 py-3 mb-5 text-[12px] text-center"
-        style={{ backgroundColor: "rgba(240,180,41,0.12)", color: "#F0B429", border: "1px solid rgba(240,180,41,0.4)" }}
+        className="rounded-xl px-4 py-3 mb-5 text-[12px] text-center font-medium"
+        style={{ backgroundColor: C.warningBg, color: C.warningText, border: `1px solid ${C.warningBorder}` }}
       >
         ⚠️ Respetá tu gestión de riesgo en cada operación. No intentes "salvarte" alargando un trade en contra tuyo — cerrá según tu plan. Usá siempre Stop Loss.
       </div>
@@ -1249,10 +1260,6 @@ function NoticiasView({ themeName }) {
 
   return (
     <div className="max-w-md mx-auto">
-      <div className="text-[11px] tracking-widest font-semibold mb-4 text-center" style={{ color: C.textDim }}>
-        NOTICIAS Y CALENDARIO ECONÓMICO
-      </div>
-
       <div className="rounded-2xl p-4 mb-4" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
         <div className="flex items-center gap-2 mb-3">
           <Bell size={16} color={C.green} />
@@ -1276,15 +1283,15 @@ function NoticiasView({ themeName }) {
 
       <div
         className="rounded-2xl p-4"
-        style={{ backgroundColor: "rgba(240,180,41,0.10)", border: "1px solid rgba(240,180,41,0.35)" }}
+        style={{ backgroundColor: C.warningBg, border: `1px solid ${C.warningBorder}` }}
       >
         <div className="flex items-center gap-2 mb-2">
           <span style={{ fontSize: 15 }}>⚠️</span>
-          <span className="text-[12px] font-bold" style={{ color: "#F0B429" }}>
+          <span className="text-[12px] font-bold" style={{ color: C.warningText }}>
             IMPORTANTE — OPERATIVA EN DÍAS DE NOTICIAS
           </span>
         </div>
-        <div className="flex flex-col gap-2 text-[12px]" style={{ color: C.textDim }}>
+        <div className="flex flex-col gap-2 text-[12px]" style={{ color: C.warningText, opacity: 0.9 }}>
           <p>
             Desde Operación Trading recomendamos NO estar dentro de una operación durante la publicación de
             noticias económicas de alto impacto, debido al aumento considerable de volatilidad, spreads,
@@ -1304,7 +1311,7 @@ function NoticiasView({ themeName }) {
             La decisión de operar, permanecer en una posición o cerrarla es siempre responsabilidad individual
             de cada usuario.
           </p>
-          <p className="font-bold" style={{ color: "#F0B429" }}>
+          <p className="font-bold" style={{ color: C.warningText, opacity: 1 }}>
             Ante una noticia de alto impacto, nuestra recomendación es clara: NO ESTAR EN MERCADO.
           </p>
         </div>
@@ -2639,29 +2646,26 @@ function MasMenu({ onSelect, onBack, isAdmin, pendingTotal }) {
   return (
     <div className="max-w-md mx-auto">
       <ScreenHeader title="Más" onBack={onBack} />
-      <div className="flex flex-col gap-3">
+      <div className="grid grid-cols-2 gap-3">
         {sections.map((s) => {
           const Icon = s.icon;
           return (
             <button
               key={s.id}
               onClick={() => onSelect(s.id)}
-              className="flex items-center justify-between rounded-2xl px-5 py-4"
+              className="relative h-28 rounded-2xl px-3 flex flex-col items-center justify-center gap-2 text-center"
               style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
             >
-              <div className="flex items-center gap-3">
-                <Icon size={18} color={C.green} />
-                <span className="font-medium text-[14px]" style={{ color: C.text }}>{s.label}</span>
-                {s.badge > 0 && (
-                  <span
-                    className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                    style={{ backgroundColor: "#F0B429", color: "#08090B" }}
-                  >
-                    {s.badge}
-                  </span>
-                )}
-              </div>
-              <ArrowLeft size={16} color={C.textDim} style={{ transform: "rotate(180deg)" }} />
+              <Icon size={20} color={C.green} />
+              <span className="font-medium text-[13px] leading-tight" style={{ color: C.text }}>{s.label}</span>
+              {s.badge > 0 && (
+                <span
+                  className="absolute top-2 right-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                  style={{ backgroundColor: "#F0B429", color: "#08090B" }}
+                >
+                  {s.badge}
+                </span>
+              )}
             </button>
           );
         })}
@@ -2673,11 +2677,13 @@ function MasMenu({ onSelect, onBack, isAdmin, pendingTotal }) {
 function ScreenHeader({ title, onBack }) {
   return (
     <div className="mb-5">
-      <button onClick={onBack} className="flex items-center gap-1.5 mb-2">
+      <button onClick={onBack} className="flex items-center gap-1.5 mb-3">
         <ArrowLeft size={19} color={C.textDim} />
         <span className="text-[13px] font-medium" style={{ color: C.textDim }}>Volver</span>
       </button>
-      <h1 className="text-xl font-bold" style={{ color: C.text }}>{title}</h1>
+      <div className="text-[14px] tracking-widest font-bold text-center" style={{ color: C.text }}>
+        {title.toUpperCase()}
+      </div>
     </div>
   );
 }
@@ -3045,7 +3051,7 @@ function UsuariosView({ onBack, accessToken, onApproved }) {
 
       {!loading && !error && comprobantes.length > 0 && (
         <div className="mb-5">
-          <div className="text-[11px] tracking-widest font-semibold mb-3" style={{ color: "#F0B429" }}>
+          <div className="text-[11px] tracking-widest font-semibold mb-3" style={{ color: C.warningText }}>
             COMPROBANTES DE PAGO ({comprobantes.length})
           </div>
           <div className="flex flex-col gap-3">
@@ -3100,7 +3106,7 @@ function UsuariosView({ onBack, accessToken, onApproved }) {
 
       {!loading && !error && pendientes.length > 0 && (
         <div className="mb-5">
-          <div className="text-[11px] tracking-widest font-semibold mb-3" style={{ color: "#F0B429" }}>
+          <div className="text-[11px] tracking-widest font-semibold mb-3" style={{ color: C.warningText }}>
             CUENTAS BLOQUEADAS ({pendientes.length})
           </div>
           <div className="flex flex-col gap-3">
@@ -3310,10 +3316,6 @@ function ConfiguracionView({ onBack, themeName, onSetTheme, nombre, setNombre, a
         <LogOut size={16} />
         Cerrar sesión
       </button>
-
-      <p className="text-[11px] text-center mt-4" style={{ color: C.textDim }}>
-        La foto es solo de vista previa por ahora. El nombre y la suscripción ya son datos reales de tu cuenta.
-      </p>
 
       {proofSent && (
         <p className="text-[12px] text-center mt-3 font-medium" style={{ color: C.green }}>
@@ -3815,16 +3817,18 @@ export default function App() {
           <>
           {tab === "senales" && view === "list" && (
             <>
-              <button onClick={goHome} className="flex items-center gap-1.5 mb-2">
+              <button onClick={goHome} className="flex items-center gap-1.5 mb-3">
                 <ArrowLeft size={19} color={C.textDim} />
                 <span className="text-[13px] font-medium" style={{ color: C.textDim }}>Volver</span>
               </button>
-              <div className="flex items-center justify-between mb-4">
-                <h1 className="text-xl font-bold" style={{ color: C.text }}>Señales</h1>
+              <div className="relative flex items-center justify-center mb-4">
+                <div className="text-[14px] tracking-widest font-bold text-center" style={{ color: C.text }}>
+                  SEÑALES
+                </div>
                 {isAdmin && (
                   <button
                     onClick={() => setShowAdminForm(true)}
-                    className="w-9 h-9 rounded-full flex items-center justify-center"
+                    className="absolute right-0 w-9 h-9 rounded-full flex items-center justify-center"
                     style={{ backgroundColor: C.green }}
                     aria-label="Nueva señal"
                   >
@@ -3840,9 +3844,9 @@ export default function App() {
                   <div
                     className="rounded-xl px-4 py-3 mb-4 text-[12px] text-center"
                     style={{
-                      backgroundColor: vencida ? C.redSoft : "rgba(240,180,41,0.12)",
-                      color: vencida ? C.red : "#F0B429",
-                      border: `1px solid ${vencida ? C.red : "#F0B429"}55`,
+                      backgroundColor: vencida ? C.redSoft : C.warningBg,
+                      color: vencida ? C.red : C.warningText,
+                      border: `1px solid ${vencida ? C.red : C.warningBorder}`,
                     }}
                   >
                     {vencida
@@ -3942,7 +3946,7 @@ export default function App() {
           {tab === "broker" && brokerView && (
             <PillarComingSoon
               label={BROKER_ITEMS.find((i) => i.id === brokerView)?.label}
-              onBack={goHome}
+              onBack={() => setBrokerView(null)}
             />
           )}
 
@@ -3953,13 +3957,13 @@ export default function App() {
             <PillarExternal
               label="Calculadoras"
               url="https://www.myfxbook.com/forex-calculators"
-              onBack={goHome}
+              onBack={() => setHerramientasView(null)}
             />
           )}
           {tab === "herramientas" && herramientasView && herramientasView !== "calculadoras" && (
             <PillarComingSoon
               label={HERRAMIENTAS_ITEMS.find((i) => i.id === herramientasView)?.label}
-              onBack={goHome}
+              onBack={() => setHerramientasView(null)}
             />
           )}
 
@@ -3975,36 +3979,30 @@ export default function App() {
           {tab === "mas" && masSection === "administracion" && isAdmin && adminPanelView === null && (
             <div className="max-w-md mx-auto">
               <ScreenHeader title="Administración" onBack={() => setMasSection(null)} />
-              <div className="flex flex-col gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <button
                   onClick={() => setAdminPanelView("usuarios")}
-                  className="flex items-center justify-between rounded-2xl px-5 py-4"
+                  className="relative h-28 rounded-2xl px-3 flex flex-col items-center justify-center gap-2 text-center"
                   style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
                 >
-                  <div className="flex items-center gap-3">
-                    <UserCog size={18} color={C.green} />
-                    <span className="font-medium text-[14px]" style={{ color: C.text }}>Usuarios y suscripciones</span>
-                    {pendingCount + pendingComprobantesCount > 0 && (
-                      <span
-                        className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                        style={{ backgroundColor: "#F0B429", color: "#08090B" }}
-                      >
-                        {pendingCount + pendingComprobantesCount}
-                      </span>
-                    )}
-                  </div>
-                  <ArrowLeft size={16} color={C.textDim} style={{ transform: "rotate(180deg)" }} />
+                  <UserCog size={20} color={C.green} />
+                  <span className="font-medium text-[13px] leading-tight" style={{ color: C.text }}>Usuarios y suscripciones</span>
+                  {pendingCount + pendingComprobantesCount > 0 && (
+                    <span
+                      className="absolute top-2 right-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                      style={{ backgroundColor: "#F0B429", color: "#08090B" }}
+                    >
+                      {pendingCount + pendingComprobantesCount}
+                    </span>
+                  )}
                 </button>
                 <button
                   onClick={() => setAdminPanelView("flyer")}
-                  className="flex items-center justify-between rounded-2xl px-5 py-4"
+                  className="h-28 rounded-2xl px-3 flex flex-col items-center justify-center gap-2 text-center"
                   style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
                 >
-                  <div className="flex items-center gap-3">
-                    <ImageIcon size={18} color={C.green} />
-                    <span className="font-medium text-[14px]" style={{ color: C.text }}>Flyer / Promociones</span>
-                  </div>
-                  <ArrowLeft size={16} color={C.textDim} style={{ transform: "rotate(180deg)" }} />
+                  <ImageIcon size={20} color={C.green} />
+                  <span className="font-medium text-[13px] leading-tight" style={{ color: C.text }}>Flyer / Promociones</span>
                 </button>
               </div>
               <p className="text-[11px] text-center mt-4" style={{ color: C.textDim }}>
@@ -4027,12 +4025,12 @@ export default function App() {
             <PillarMenu title="Tutoriales" items={ACADEMIA_ITEMS} onSelect={setFormacionView} onBack={goHome} />
           )}
           {tab === "mas" && masSection === "formacion" && formacionView === "videos" && (
-            <ClasesGrabadasView onBack={goHome} />
+            <ClasesGrabadasView onBack={() => setFormacionView(null)} />
           )}
           {tab === "mas" && masSection === "formacion" && formacionView && formacionView !== "videos" && (
             <PillarComingSoon
               label={ACADEMIA_ITEMS.find((i) => i.id === formacionView)?.label}
-              onBack={goHome}
+              onBack={() => setFormacionView(null)}
             />
           )}
 
@@ -4045,10 +4043,10 @@ export default function App() {
             />
           )}
           {tab === "mas" && masSection === "comunidad" && comunidadView === "discord" && (
-            <ComunidadSubView onBack={goHome} />
+            <ComunidadSubView onBack={() => setComunidadView(null)} />
           )}
           {tab === "mas" && masSection === "comunidad" && comunidadView === "noticias-internas" && (
-            <NovedadesSubView onBack={goHome} isAdmin={isAdmin} />
+            <NovedadesSubView onBack={() => setComunidadView(null)} isAdmin={isAdmin} />
           )}
           {tab === "mas" &&
             masSection === "comunidad" &&
@@ -4056,7 +4054,7 @@ export default function App() {
             !["discord", "noticias-internas"].includes(comunidadView) && (
               <PillarComingSoon
                 label={COMUNIDAD_ITEMS.find((i) => i.id === comunidadView)?.label}
-                onBack={goHome}
+                onBack={() => setComunidadView(null)}
               />
             )}
 
@@ -4064,21 +4062,21 @@ export default function App() {
             <PillarMenu title="Tienda" items={TIENDA_ITEMS} onSelect={setTiendaView} onBack={goHome} />
           )}
           {tab === "mas" && masSection === "tienda" && tiendaView === "bonos" && (
-            <BonosView onBack={goHome} />
+            <BonosView onBack={() => setTiendaView(null)} />
           )}
           {tab === "mas" && masSection === "tienda" && tiendaView && tiendaView !== "bonos" && (
             <PillarComingSoon
               label={TIENDA_ITEMS.find((i) => i.id === tiendaView)?.label}
-              onBack={goHome}
+              onBack={() => setTiendaView(null)}
             />
           )}
 
           {tab === "mas" && masSection === "calendario-mas" && (
-            <CalendarioEconomicoWrap themeName={themeName} onBack={goHome} />
+            <CalendarioEconomicoWrap themeName={themeName} onBack={() => setMasSection(null)} />
           )}
           {tab === "mas" && masSection === "soporte" && (
             <div className="max-w-md mx-auto">
-              <ScreenHeader title="Soporte" onBack={goHome} />
+              <ScreenHeader title="Soporte" onBack={() => setMasSection(null)} />
               <div className="rounded-2xl p-6 text-center" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
                 <p className="text-sm mb-4" style={{ color: C.textDim }}>
                   ¿Tenés una duda o un problema con la app? Escribinos directo por WhatsApp.
@@ -4101,15 +4099,15 @@ export default function App() {
 
           {specialView === "usuarios" && isAdmin && (
             <UsuariosView
-              onBack={goHome}
+              onBack={() => setSpecialView(null)}
               accessToken={session.accessToken}
               onApproved={() => refreshPendingCount(session.accessToken)}
             />
           )}
-          {specialView === "planes" && <PlanesProView onBack={goHome} />}
+          {specialView === "planes" && <PlanesProView onBack={() => setSpecialView(null)} />}
           {specialView === "config" && (
             <ConfiguracionView
-              onBack={goHome}
+              onBack={() => setSpecialView(null)}
               themeName={themeName}
               onSetTheme={setThemeName}
               nombre={nombre}
