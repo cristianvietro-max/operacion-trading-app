@@ -687,19 +687,19 @@ function SignalCard({ signal, onOpen, compact }) {
             {signal.estado === "ganada" && (
               <div
                 className="flex items-center gap-1 px-2 py-0.5 rounded-full"
-                style={{ backgroundColor: isClosed ? C.borderSoft : C.greenSoft }}
+                style={{ backgroundColor: C.greenSoft, boxShadow: `0 0 0 1px ${C.green}55` }}
               >
                 <ThumbsUp size={14} color={C.green} />
-                <span className="font-semibold text-[13px] uppercase" style={{ color: isClosed ? C.textDim : C.green }}>Ganada</span>
+                <span className="font-semibold text-[13px] uppercase" style={{ color: C.green }}>Ganada</span>
               </div>
             )}
             {signal.estado === "perdida" && (
               <div
                 className="flex items-center gap-1 px-2 py-0.5 rounded-full"
-                style={{ backgroundColor: isClosed ? C.borderSoft : C.redSoft }}
+                style={{ backgroundColor: C.redSoft, boxShadow: `0 0 0 1px ${C.red}55` }}
               >
                 <ThumbsDown size={14} color={C.red} />
-                <span className="font-semibold text-[13px] uppercase" style={{ color: isClosed ? C.textDim : C.red }}>Perdida</span>
+                <span className="font-semibold text-[13px] uppercase" style={{ color: C.red }}>Perdida</span>
               </div>
             )}
             {signal.estado !== "ganada" && signal.estado !== "perdida" && (
@@ -739,19 +739,19 @@ function SignalCard({ signal, onOpen, compact }) {
             {signal.estado === "ganada" && (
               <div
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-full"
-                style={{ backgroundColor: isClosed ? C.borderSoft : C.greenSoft }}
+                style={{ backgroundColor: C.greenSoft, boxShadow: `0 0 0 1px ${C.green}55` }}
               >
                 <ThumbsUp size={15} color={C.green} />
-                <span className="font-semibold text-[15px] uppercase" style={{ color: isClosed ? C.textDim : C.green }}>Ganada</span>
+                <span className="font-semibold text-[15px] uppercase" style={{ color: C.green }}>Ganada</span>
               </div>
             )}
             {signal.estado === "perdida" && (
               <div
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-full"
-                style={{ backgroundColor: isClosed ? C.borderSoft : C.redSoft }}
+                style={{ backgroundColor: C.redSoft, boxShadow: `0 0 0 1px ${C.red}55` }}
               >
                 <ThumbsDown size={15} color={C.red} />
-                <span className="font-semibold text-[15px] uppercase" style={{ color: isClosed ? C.textDim : C.red }}>Perdida</span>
+                <span className="font-semibold text-[15px] uppercase" style={{ color: C.red }}>Perdida</span>
               </div>
             )}
             {signal.estado !== "ganada" && signal.estado !== "perdida" && (
