@@ -1259,14 +1259,18 @@ function AdminForm({ onClose, onCreated, existingSignal, onDeleted }) {
           )}
 
           <div>
-            <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>TU NOMBRE (AUTOR)</label>
-            <input
+            <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>TRADER QUE ENVÍA LA SEÑAL</label>
+            <select
               value={autor}
               onChange={(e) => setAutor(e.target.value)}
-              placeholder="Ej: Fede Lobo"
               className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
               style={inputStyle}
-            />
+            >
+              <option value="">Seleccionar trader...</option>
+              {TRADERS.map((t) => (
+                <option key={t.handle} value={t.name}>{t.name} ({t.handle})</option>
+              ))}
+            </select>
           </div>
 
           <div>
@@ -2658,7 +2662,7 @@ function RachaDiaria({ signals }) {
 
   return (
     <div className="rounded-2xl px-4 py-4 mb-4" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
-      <div className="text-[11px] tracking-widest font-semibold mb-3" style={{ color: C.textDim }}>
+      <div className="text-[11px] tracking-widest font-semibold mb-3 text-center" style={{ color: C.textDim }}>
         RESUMEN DE TRADES
       </div>
       <div className="flex items-end justify-between">
