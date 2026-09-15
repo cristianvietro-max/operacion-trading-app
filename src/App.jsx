@@ -2704,7 +2704,7 @@ function RachaDiaria({ signals }) {
     return signals
       .filter((s) => {
         if (!s.createdAt) return false;
-        if (s.estado !== "ganada" && s.estado !== "perdida") return false;
+        if (s.estado !== "ganada" && s.estado !== "perdida" && s.estado !== "be") return false;
         const f = new Date(s.createdAt);
         return f >= dia && f < siguiente;
       })
@@ -2729,6 +2729,8 @@ function RachaDiaria({ signals }) {
                   resultados.map((r, j) =>
                     r === "ganada" ? (
                       <Check key={j} size={14} color={C.green} strokeWidth={3} />
+                    ) : r === "be" ? (
+                      <Dices key={j} size={14} color="#FFFFFF" strokeWidth={3} />
                     ) : (
                       <X key={j} size={14} color={C.red} strokeWidth={3} />
                     )
@@ -2748,6 +2750,10 @@ function RachaDiaria({ signals }) {
         <div className="flex items-center gap-1">
           <X size={11} color={C.red} strokeWidth={3} />
           <span className="text-[10px]" style={{ color: C.textDim }}>Perdido</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <Dices size={11} color="#FFFFFF" strokeWidth={3} />
+          <span className="text-[10px]" style={{ color: C.textDim }}>BE</span>
         </div>
         <div className="flex items-center gap-1">
           <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: C.border }} />
