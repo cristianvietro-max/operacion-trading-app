@@ -3221,7 +3221,7 @@ function InicioDashboard({ signals, isAdmin, onOpenSignal, onNuevaSenal, onNavig
             style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
           >
             <b.icon size={20} color={C.green} />
-            <span className="text-[11px] font-semibold text-center" style={{ color: C.text }}>{b.label}</span>
+            <span className="text-[11px] font-semibold text-center uppercase" style={{ color: C.text }}>{b.label}</span>
           </button>
         ))}
       </div>
@@ -3236,10 +3236,26 @@ function InicioDashboard({ signals, isAdmin, onOpenSignal, onNuevaSenal, onNavig
             style={{ backgroundColor: "transparent", border: `1px solid ${C.borderSoft}` }}
           >
             <b.icon size={15} color={C.textDim} />
-            <span className="text-[9px] text-center leading-tight" style={{ color: C.textDim }}>{b.label}</span>
+            <span className="text-[9px] text-center leading-tight uppercase" style={{ color: C.textDim }}>{b.label}</span>
           </button>
         ))}
       </div>
+
+      <button
+        onClick={() => onNavigate("automatizaciones")}
+        className="w-full rounded-xl px-2 py-3 flex flex-col items-center justify-center gap-1 mb-2"
+        style={{ backgroundColor: "transparent", border: `1px solid ${C.borderSoft}` }}
+      >
+        <div className="flex items-center justify-center gap-2">
+          <Wrench size={15} color={C.textDim} />
+          <span className="text-[11px] font-semibold text-center uppercase" style={{ color: C.textDim }}>
+            Automatizaciones / EAs (MT5 - TradingView)
+          </span>
+        </div>
+        <span className="text-[9px] text-center" style={{ color: C.textDim }}>
+          (Solo para usuarios con membresía PRO)
+        </span>
+      </button>
 
       <button
         onClick={() => onNavigate("mas")}
@@ -4307,7 +4323,7 @@ function HistorialComprobantesModal({ userId, accessToken, onClose }) {
   );
 }
 
-function NodeExplorer({ seccion, rootTitle, isAdmin, onBack, layout = "grid" }) {
+function NodeExplorer({ seccion, rootTitle, isAdmin, onBack, layout = "grid", fixedRootItems = [] }) {
   const [path, setPath] = useState([{ id: null, titulo: rootTitle }]);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -4405,6 +4421,25 @@ function NodeExplorer({ seccion, rootTitle, isAdmin, onBack, layout = "grid" }) 
       {!loading && error && <p className="text-sm text-center py-10" style={{ color: C.red }}>{error}</p>}
 
       <div className={isGrid ? "grid grid-cols-2 gap-3" : "flex flex-col gap-3"}>
+        {path.length === 1 && fixedRootItems.map((f, fi) => (
+          <button
+            key={`fixed-${fi}`}
+            onClick={f.onClick}
+            className="text-left rounded-2xl overflow-hidden"
+            style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
+          >
+            <div
+              className={isGrid ? "h-28 flex items-center justify-center overflow-hidden" : "h-24 flex items-center justify-center overflow-hidden"}
+              style={{ backgroundColor: C.cardAlt, borderBottom: `1px solid ${C.borderSoft}` }}
+            >
+              <f.icon size={isGrid ? 24 : 30} color={C.green} />
+            </div>
+            <div className={isGrid ? "px-3 py-2.5 flex items-center justify-between gap-1" : "px-4 py-3 flex items-center justify-between"}>
+              <div className={isGrid ? "font-medium text-[12px] leading-tight" : "font-semibold text-[14px]"} style={{ color: C.text }}>{f.titulo}</div>
+              <ChevronRight size={16} color={C.textDim} className="shrink-0 ml-2" />
+            </div>
+          </button>
+        ))}
         {!loading && !error && items.map((node, i) => {
           const isFolder = node.tipo === "carpeta";
           const thumb = node.miniatura_url || (!isFolder ? youtubeThumbFromUrl(node.url) : null);
@@ -4417,13 +4452,13 @@ function NodeExplorer({ seccion, rootTitle, isAdmin, onBack, layout = "grid" }) 
             >
               <button onClick={() => handleOpen(node)} className="w-full text-left block">
                 <div
-                  className={isGrid ? "h-20 flex items-center justify-center overflow-hidden" : "h-24 flex items-center justify-center overflow-hidden"}
+                  className={isGrid ? "h-28 flex items-center justify-center overflow-hidden" : "h-24 flex items-center justify-center overflow-hidden"}
                   style={{ backgroundColor: C.cardAlt, borderBottom: `1px solid ${C.borderSoft}` }}
                 >
                   {thumb ? (
                     <img src={thumb} alt="" className="w-full h-full object-cover" />
                   ) : (
-                    <TypeIcon size={isGrid ? 22 : 30} color={C.green} />
+                    <TypeIcon size={isGrid ? 26 : 30} color={C.green} />
                   )}
                 </div>
                 <div className={isGrid ? "px-3 py-2.5 flex items-center justify-between gap-1" : "px-4 py-3 flex items-center justify-between"}>
@@ -5006,20 +5041,17 @@ export default function App() {
             <BrokerView onBack={goHome} isAdmin={isAdmin} />
           )}
 
-          {tab === "herramientas" && herramientasView === null && (
-            <PillarMenu title="Herramientas" items={HERRAMIENTAS_ITEMS} onSelect={setHerramientasView} onBack={goHome} />
+          {tab === "herramientas" && (
+            <NodeExplorer seccion="herramientas" rootTitle="Herramientas" isAdmin={isAdmin} onBack={goHome} layout="grid" />
           )}
-          {tab === "herramientas" && herramientasView === "calculadoras" && (
-            <PillarExternal
-              label="Calculadoras"
-              url="https://www.myfxbook.com/forex-calculators"
-              onBack={() => setHerramientasView(null)}
-            />
-          )}
-          {tab === "herramientas" && herramientasView && herramientasView !== "calculadoras" && (
-            <PillarComingSoon
-              label={HERRAMIENTAS_ITEMS.find((i) => i.id === herramientasView)?.label}
-              onBack={() => setHerramientasView(null)}
+
+          {tab === "automatizaciones" && (
+            <NodeExplorer
+              seccion="automatizaciones"
+              rootTitle="Automatizaciones / EAs (MT5 - TradingView)"
+              isAdmin={isAdmin}
+              onBack={goHome}
+              layout="grid"
             />
           )}
 
@@ -5082,11 +5114,16 @@ export default function App() {
           )}
 
           {tab === "mas" && masSection === "comunidad" && comunidadView === null && (
-            <PillarMenu
-              title="Comunidad Operación Trading"
-              items={COMUNIDAD_ITEMS}
-              onSelect={setComunidadView}
+            <NodeExplorer
+              seccion="comunidad"
+              rootTitle="Comunidad Operación Trading"
+              isAdmin={isAdmin}
               onBack={goHome}
+              layout="grid"
+              fixedRootItems={[
+                { titulo: "Discord y traders", icon: MessageCircle, onClick: () => setComunidadView("discord") },
+                { titulo: "Noticias internas", icon: Bell, onClick: () => setComunidadView("noticias-internas") },
+              ]}
             />
           )}
           {tab === "mas" && masSection === "comunidad" && comunidadView === "discord" && (
@@ -5095,27 +5132,9 @@ export default function App() {
           {tab === "mas" && masSection === "comunidad" && comunidadView === "noticias-internas" && (
             <NovedadesSubView onBack={() => setComunidadView(null)} isAdmin={isAdmin} />
           )}
-          {tab === "mas" &&
-            masSection === "comunidad" &&
-            comunidadView &&
-            !["discord", "noticias-internas"].includes(comunidadView) && (
-              <PillarComingSoon
-                label={COMUNIDAD_ITEMS.find((i) => i.id === comunidadView)?.label}
-                onBack={() => setComunidadView(null)}
-              />
-            )}
 
-          {tab === "mas" && masSection === "tienda" && tiendaView === null && (
-            <PillarMenu title="Tienda" items={TIENDA_ITEMS} onSelect={setTiendaView} onBack={goHome} />
-          )}
-          {tab === "mas" && masSection === "tienda" && tiendaView === "bonos" && (
-            <BonosView onBack={() => setTiendaView(null)} />
-          )}
-          {tab === "mas" && masSection === "tienda" && tiendaView && tiendaView !== "bonos" && (
-            <PillarComingSoon
-              label={TIENDA_ITEMS.find((i) => i.id === tiendaView)?.label}
-              onBack={() => setTiendaView(null)}
-            />
+          {tab === "mas" && masSection === "tienda" && (
+            <NodeExplorer seccion="tienda" rootTitle="Tienda" isAdmin={isAdmin} onBack={goHome} layout="grid" />
           )}
 
           {tab === "mas" && masSection === "calendario-mas" && (
