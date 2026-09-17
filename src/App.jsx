@@ -4611,12 +4611,32 @@ function BonosView({ onBack }) {
 
 // ============ BITÁCORA PERSONAL ============
 
+const BITACORA_MERCADOS = [
+  { value: "forex", label: "Forex" },
+  { value: "cripto", label: "Criptomonedas" },
+  { value: "acciones", label: "Acciones" },
+  { value: "indices", label: "Índices" },
+  { value: "materias_primas", label: "Materias Primas" },
+  { value: "futuros", label: "Futuros" },
+  { value: "opciones", label: "Opciones" },
+];
+
+const BITACORA_RESULTADOS = [
+  { value: "ganada", label: "Ganada" },
+  { value: "perdida", label: "Perdida" },
+  { value: "be", label: "BE" },
+];
+
 function BitacoraTradeForm({ trade, accessToken, userId, onClose, onSaved }) {
   const isEdit = !!trade;
-  const [simbolo, setSimbolo] = useState(trade?.simbolo || "");
   const [direccion, setDireccion] = useState(trade?.direccion || "compra");
+  const [mercado, setMercado] = useState(trade?.mercado || "forex");
+  const [resultadoTipo, setResultadoTipo] = useState(trade?.tipo_orden || "ganada");
+  const [simbolo, setSimbolo] = useState(trade?.simbolo || "");
+  const [estado, setEstado] = useState(trade?.estado || "cerrada");
   const [fecha, setFecha] = useState(trade?.fecha || new Date().toISOString().slice(0, 10));
   const [resultado, setResultado] = useState(trade?.resultado != null ? String(trade.resultado) : "");
+  const [estrategia, setEstrategia] = useState(trade?.estrategia || "");
   const [notas, setNotas] = useState(trade?.notas || "");
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(trade?.captura_url || null);
@@ -4641,10 +4661,14 @@ function BitacoraTradeForm({ trade, accessToken, userId, onClose, onSaved }) {
         capturaUrl = await uploadBitacoraCaptura(file);
       }
       const payload = {
-        simbolo: simbolo.trim().toUpperCase(),
         direccion,
+        mercado,
+        tipo_orden: resultadoTipo,
+        simbolo: simbolo.trim().toUpperCase(),
+        estado,
         fecha,
         resultado: Number(resultado || 0),
+        estrategia: estrategia.trim() || null,
         notas: notas.trim() || null,
         captura_url: capturaUrl,
       };
@@ -4674,6 +4698,8 @@ function BitacoraTradeForm({ trade, accessToken, userId, onClose, onSaved }) {
     }
   };
 
+  const selectStyle = { ...inputStyle, appearance: "none" };
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center"
@@ -4686,7 +4712,7 @@ function BitacoraTradeForm({ trade, accessToken, userId, onClose, onSaved }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
-          <span className="text-[15px] font-semibold" style={{ color: C.text }}>
+          <span className="text-[17px] font-bold" style={{ color: C.text }}>
             {isEdit ? "Editar operación" : "Nueva operación"}
           </span>
           <button onClick={onClose}>
@@ -4694,78 +4720,120 @@ function BitacoraTradeForm({ trade, accessToken, userId, onClose, onSaved }) {
           </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 mb-3">
+        <div
+          className="rounded-2xl p-4 mb-4"
+          style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.borderSoft}` }}
+        >
+          <div className="text-[11px] tracking-widest font-semibold mb-3" style={{ color: C.textDim }}>
+            OPERACIÓN
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>DIRECCIÓN</label>
+              <select value={direccion} onChange={(e) => setDireccion(e.target.value)} className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none" style={selectStyle}>
+                <option value="compra">Compra</option>
+                <option value="venta">Venta</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>MERCADO</label>
+              <select value={mercado} onChange={(e) => setMercado(e.target.value)} className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none" style={selectStyle}>
+                {BITACORA_MERCADOS.map((m) => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>RESULTADO</label>
+              <select value={resultadoTipo} onChange={(e) => setResultadoTipo(e.target.value)} className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none" style={selectStyle}>
+                {BITACORA_RESULTADOS.map((t) => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>SÍMBOLO</label>
+              <input
+                value={simbolo}
+                onChange={(e) => setSimbolo(e.target.value)}
+                placeholder="Ej: EURUSD"
+                className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
+                style={inputStyle}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>ESTADO</label>
+              <select value={estado} onChange={(e) => setEstado(e.target.value)} className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none" style={selectStyle}>
+                <option value="cerrada">Cerrada</option>
+                <option value="abierta">Abierta</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>FECHA</label>
+              <input
+                type="date"
+                value={fecha}
+                onChange={(e) => setFecha(e.target.value)}
+                className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
+                style={inputStyle}
+              />
+            </div>
+          </div>
+
           <div>
-            <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>SÍMBOLO</label>
+            <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>MONTO ($)</label>
             <input
-              value={simbolo}
-              onChange={(e) => setSimbolo(e.target.value)}
-              placeholder="Ej: EURUSD"
+              type="number"
+              step="0.01"
+              value={resultado}
+              onChange={(e) => setResultado(e.target.value)}
+              placeholder="Ej: 125.50 o -80"
+              className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
+              style={inputStyle}
+            />
+            <p className="text-[11px] mt-1" style={{ color: C.textDim }}>
+              Positivo si ganaste, negativo si perdiste, 0 si fue neutro.
+            </p>
+          </div>
+        </div>
+
+        <div
+          className="rounded-2xl p-4 mb-4"
+          style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.borderSoft}` }}
+        >
+          <div className="text-[11px] tracking-widest font-semibold mb-3" style={{ color: C.textDim }}>
+            ESTRATEGIA Y NOTAS
+          </div>
+
+          <div className="mb-3">
+            <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>ESTRATEGIA (OPCIONAL)</label>
+            <input
+              value={estrategia}
+              onChange={(e) => setEstrategia(e.target.value)}
+              placeholder="Ej: Ruptura de rango"
               className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
               style={inputStyle}
             />
           </div>
+
           <div>
-            <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>FECHA</label>
-            <input
-              type="date"
-              value={fecha}
-              onChange={(e) => setFecha(e.target.value)}
-              className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
+            <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>NOTAS / LECCIONES (OPCIONAL)</label>
+            <textarea
+              value={notas}
+              onChange={(e) => setNotas(e.target.value)}
+              rows={3}
+              placeholder="¿Qué aprendiste de esta operación?"
+              className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none resize-none"
               style={inputStyle}
             />
           </div>
-        </div>
-
-        <div className="mb-3">
-          <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>DIRECCIÓN</label>
-          <div className="flex gap-2 mt-1">
-            {[
-              { value: "compra", label: "Compra", color: C.green },
-              { value: "venta", label: "Venta", color: C.red },
-            ].map((d) => (
-              <button
-                key={d.value}
-                onClick={() => setDireccion(d.value)}
-                className="flex-1 rounded-xl py-3 text-sm font-semibold"
-                style={{
-                  backgroundColor: direccion === d.value ? d.color : C.cardAlt,
-                  color: direccion === d.value ? "#08090B" : C.textDim,
-                  border: `1px solid ${direccion === d.value ? d.color : C.border}`,
-                }}
-              >
-                {d.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="mb-3">
-          <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>RESULTADO ($)</label>
-          <input
-            type="number"
-            step="0.01"
-            value={resultado}
-            onChange={(e) => setResultado(e.target.value)}
-            placeholder="Ej: 120 o -45"
-            className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
-            style={inputStyle}
-          />
-          <p className="text-[11px] mt-1" style={{ color: C.textDim }}>
-            Positivo si ganaste, negativo si perdiste, 0 si fue neutro.
-          </p>
-        </div>
-
-        <div className="mb-3">
-          <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>NOTAS (OPCIONAL)</label>
-          <textarea
-            value={notas}
-            onChange={(e) => setNotas(e.target.value)}
-            rows={2}
-            placeholder="Alguna aclaración corta..."
-            className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none resize-none"
-            style={inputStyle}
-          />
         </div>
 
         <div className="mb-4">
@@ -4991,10 +5059,23 @@ function BitacoraOperaciones({ trades, accessToken, userId, onBack, onChanged })
             )}
             <div className="flex-1 min-w-0">
               <div className="font-semibold text-[14px]" style={{ color: C.text }}>{t.simbolo}</div>
-              <div className="text-xs" style={{ color: C.textDim }}>
+              <div className="text-xs truncate" style={{ color: C.textDim }}>
                 {t.fecha} · {t.direccion === "venta" ? "Venta" : "Compra"}
+                {t.estrategia ? ` · ${t.estrategia}` : ""}
+                {t.estado === "abierta" ? " · Abierta" : ""}
               </div>
             </div>
+            {t.tipo_orden && (
+              <span
+                className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full shrink-0"
+                style={{
+                  backgroundColor: t.tipo_orden === "ganada" ? C.greenSoft : t.tipo_orden === "perdida" ? C.redSoft : C.cardAlt,
+                  color: t.tipo_orden === "ganada" ? C.green : t.tipo_orden === "perdida" ? C.red : C.textDim,
+                }}
+              >
+                {t.tipo_orden === "be" ? "BE" : t.tipo_orden === "ganada" ? "Ganada" : "Perdida"}
+              </span>
+            )}
             <div className="font-bold text-[14px] shrink-0" style={{ color: Number(t.resultado) >= 0 ? C.green : C.red }}>
               {Number(t.resultado) >= 0 ? "+" : ""}{Number(t.resultado).toFixed(2)}
             </div>
