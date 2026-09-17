@@ -4635,7 +4635,7 @@ function BitacoraTradeForm({ trade, accessToken, userId, onClose, onSaved }) {
   const [simbolo, setSimbolo] = useState(trade?.simbolo || "");
   const [estado, setEstado] = useState(trade?.estado || "cerrada");
   const [fecha, setFecha] = useState(trade?.fecha || new Date().toISOString().slice(0, 10));
-  const [resultado, setResultado] = useState(trade?.resultado != null ? String(trade.resultado) : "");
+  const [resultado, setResultado] = useState(trade?.resultado != null ? String(Math.abs(Number(trade.resultado))) : "");
   const [estrategia, setEstrategia] = useState(trade?.estrategia || "");
   const [notas, setNotas] = useState(trade?.notas || "");
   const [file, setFile] = useState(null);
@@ -4660,6 +4660,9 @@ function BitacoraTradeForm({ trade, accessToken, userId, onClose, onSaved }) {
       if (file) {
         capturaUrl = await uploadBitacoraCaptura(file);
       }
+      const montoAbs = Math.abs(Number(resultado || 0));
+      const resultadoFinal =
+        resultadoTipo === "perdida" ? -montoAbs : resultadoTipo === "ganada" ? montoAbs : Number(resultado || 0);
       const payload = {
         direccion,
         mercado,
@@ -4667,7 +4670,7 @@ function BitacoraTradeForm({ trade, accessToken, userId, onClose, onSaved }) {
         simbolo: simbolo.trim().toUpperCase(),
         estado,
         fecha,
-        resultado: Number(resultado || 0),
+        resultado: resultadoFinal,
         estrategia: estrategia.trim() || null,
         notas: notas.trim() || null,
         captura_url: capturaUrl,
@@ -4792,14 +4795,15 @@ function BitacoraTradeForm({ trade, accessToken, userId, onClose, onSaved }) {
             <input
               type="number"
               step="0.01"
+              min="0"
               value={resultado}
               onChange={(e) => setResultado(e.target.value)}
-              placeholder="Ej: 125.50 o -80"
+              placeholder="Ej: 125.50"
               className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
               style={inputStyle}
             />
             <p className="text-[11px] mt-1" style={{ color: C.textDim }}>
-              Positivo si ganaste, negativo si perdiste, 0 si fue neutro.
+              Ingresá el monto en positivo — el signo se ajusta solo según lo que elegiste en "Resultado".
             </p>
           </div>
         </div>
