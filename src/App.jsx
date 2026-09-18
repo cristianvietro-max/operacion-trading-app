@@ -6699,6 +6699,56 @@ export default function App() {
           {tab === "mas" && masSection === "soporte" && (
             <div className="max-w-md mx-auto">
               <ScreenHeader title="Soporte" onBack={() => setMasSection(null)} />
+
+              <div className="mb-4">
+                <div className="text-[15px] font-bold mb-1" style={{ color: C.text }}>
+                  Estamos para ayudarte.
+                </div>
+                <p className="text-sm" style={{ color: C.textDim }}>
+                  Dejanos tu consulta con la mayor cantidad de información posible para que podamos revisarla correctamente.
+                </p>
+              </div>
+
+              <div
+                className="rounded-2xl p-4 mb-4"
+                style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.border}` }}
+              >
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="text-base">⏱️</span>
+                  <span className="text-[13px] font-semibold" style={{ color: C.text }}>Tiempo de respuesta</span>
+                </div>
+                <p className="text-xs" style={{ color: C.textDim }}>
+                  Nuestro equipo responde las consultas en un plazo de hasta 24 horas. Te pedimos paciencia y evitar
+                  enviar la misma consulta varias veces, ya que esto puede demorar la atención.
+                </p>
+              </div>
+
+              <div
+                className="rounded-2xl p-4 mb-4"
+                style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
+              >
+                <div className="text-[11px] tracking-widest font-semibold mb-3" style={{ color: C.textDim }}>
+                  ANTES DE ENVIAR TU CONSULTA
+                </div>
+                <div className="flex flex-col gap-2.5">
+                  {[
+                    { icon: MessageCircle, texto: "Describí el problema con el mayor detalle posible" },
+                    { icon: Camera, texto: "Adjuntá una captura de pantalla si es necesario" },
+                    { icon: CalendarDays, texto: "Esperá nuestra respuesta dentro de las próximas 24 h" },
+                  ].map((item, i) => (
+                    <div key={i} className="flex items-start gap-2.5">
+                      <div
+                        className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5"
+                        style={{ backgroundColor: C.greenSoft }}
+                      >
+                        <item.icon size={12} color={C.green} />
+                      </div>
+                      <span className="text-[13px]" style={{ color: C.text }}>{item.texto}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div className="rounded-2xl p-6 text-center" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
                 <p className="text-sm mb-4" style={{ color: C.textDim }}>
                   ¿Tenés una duda o un problema con la app? Escribinos directo por WhatsApp.
