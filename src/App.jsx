@@ -5077,7 +5077,7 @@ function BitacoraOperaciones({ trades, cuentas, accessToken, userId, onBack, onC
               </span>
             )}
             <div className="font-bold text-[14px] shrink-0" style={{ color: Number(t.resultado) >= 0 ? C.green : C.red }}>
-              {Number(t.resultado) >= 0 ? "+" : ""}{Number(t.resultado).toFixed(2)}
+              {Number(t.resultado) >= 0 ? "+" : ""}{formatMoneyAR(t.resultado)}
             </div>
           </button>
         ))}
@@ -5192,7 +5192,7 @@ function BitacoraCalendario({ trades, onBack, embedded = false }) {
               <span className="text-[10px]" style={{ color: hasTrades ? fg : C.textDim }}>{d}</span>
               {hasTrades && (
                 <span className="text-[8px] font-semibold" style={{ color: fg }}>
-                  {total >= 0 ? "+" : ""}{total.toFixed(0)}
+                  {total >= 0 ? "+" : ""}{formatMoneyAR(total)}
                 </span>
               )}
             </button>
@@ -5241,7 +5241,7 @@ function BitacoraCalendario({ trades, onBack, embedded = false }) {
                     {t.notas && <div className="text-xs truncate" style={{ color: C.textDim }}>{t.notas}</div>}
                   </div>
                   <div className="font-bold text-[14px] shrink-0" style={{ color: Number(t.resultado) >= 0 ? C.green : C.red }}>
-                    {Number(t.resultado) >= 0 ? "+" : ""}{Number(t.resultado).toFixed(2)}
+                    {Number(t.resultado) >= 0 ? "+" : ""}{formatMoneyAR(t.resultado)}
                   </div>
                 </div>
               ))}
@@ -5301,6 +5301,10 @@ function BitacoraMenu({ onSelect, onBack }) {
       </div>
     </div>
   );
+}
+
+function formatMoneyAR(n) {
+  return Number(n || 0).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function calcularBalanceCuenta(cuenta, trades, movimientos) {
@@ -5570,9 +5574,9 @@ function BitacoraCuentasView({ cuentas, trades, movimientos, accessToken, userId
         <div className="rounded-2xl px-4 py-4 mb-4" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
           <div className="text-[11px] tracking-wide font-medium mb-1" style={{ color: C.textDim }}>BALANCE ACTUAL</div>
           <div className="text-2xl font-bold" style={{ color: balance >= 0 ? C.green : C.red }}>
-            {balance >= 0 ? "+" : ""}{balance.toFixed(2)}
+            {balance >= 0 ? "+" : ""}{formatMoneyAR(balance)}
           </div>
-          <div className="text-xs mt-1" style={{ color: C.textDim }}>Capital inicial: {Number(cuenta.capital_inicial).toFixed(2)}</div>
+          <div className="text-xs mt-1" style={{ color: C.textDim }}>Capital inicial: {formatMoneyAR(cuenta.capital_inicial)}</div>
         </div>
 
         <button
@@ -5611,7 +5615,7 @@ function BitacoraCuentasView({ cuentas, trades, movimientos, accessToken, userId
                 <div className="text-xs truncate" style={{ color: C.textDim }}>{m.fecha}{m.nota ? ` · ${m.nota}` : ""}</div>
               </div>
               <div className="font-semibold text-[14px] shrink-0" style={{ color: m.tipo === "ingreso" ? C.green : C.red }}>
-                {m.tipo === "ingreso" ? "+" : "-"}{Number(m.monto).toFixed(2)}
+                {m.tipo === "ingreso" ? "+" : "-"}{formatMoneyAR(m.monto)}
               </div>
               <button onClick={() => handleDeleteMov(m)}>
                 <X size={14} color={C.textDim} />
@@ -5672,11 +5676,11 @@ function BitacoraCuentasView({ cuentas, trades, movimientos, accessToken, userId
             >
               <div>
                 <div className="font-semibold text-[14px]" style={{ color: C.text }}>{c.nombre}</div>
-                <div className="text-xs mt-0.5" style={{ color: C.textDim }}>Capital inicial: {Number(c.capital_inicial).toFixed(2)}</div>
+                <div className="text-xs mt-0.5" style={{ color: C.textDim }}>Capital inicial: {formatMoneyAR(c.capital_inicial)}</div>
               </div>
               <div className="text-right">
                 <div className="font-bold text-[15px]" style={{ color: balance >= 0 ? C.green : C.red }}>
-                  {balance >= 0 ? "+" : ""}{balance.toFixed(2)}
+                  {balance >= 0 ? "+" : ""}{formatMoneyAR(balance)}
                 </div>
                 <ChevronRight size={14} color={C.textDim} className="ml-auto mt-1" />
               </div>
@@ -5697,8 +5701,9 @@ function BitacoraCuentasView({ cuentas, trades, movimientos, accessToken, userId
   );
 }
 
-function BitacoraDashboard({ trades, cuentas, movimientos, onBack, onIrOperaciones, onIrCuentas }) {
+function BitacoraDashboard({ trades, cuentas, movimientos, accessToken, userId, onBack, onIrOperaciones, onIrCuentas, onChanged }) {
   const [selectedCuentaId, setSelectedCuentaId] = useState("todas");
+  const [showQuickCuentaForm, setShowQuickCuentaForm] = useState(false);
 
   const tradesFiltrados =
     selectedCuentaId === "todas" ? trades : trades.filter((t) => String(t.cuenta_id) === String(selectedCuentaId));
@@ -5746,32 +5751,29 @@ function BitacoraDashboard({ trades, cuentas, movimientos, onBack, onIrOperacion
 
       <div className="flex items-center justify-between mb-4">
         <span className="text-[19px] font-bold" style={{ color: C.text }}>Bitácora</span>
-        <button
-          onClick={onIrCuentas}
-          className="flex items-center gap-1.5 rounded-full px-3 py-1.5"
-          style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.border}` }}
-        >
-          <Wrench size={13} color={C.textDim} />
-          <span className="text-xs font-medium" style={{ color: C.textDim }}>Cuentas</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowQuickCuentaForm(true)}
+            className="w-7 h-7 rounded-full flex items-center justify-center"
+            style={{ backgroundColor: C.green }}
+          >
+            <Plus size={15} color="#08090B" />
+          </button>
+          <button
+            onClick={onIrCuentas}
+            className="flex items-center gap-1.5 rounded-full px-3 py-1.5"
+            style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.border}` }}
+          >
+            <Wrench size={13} color={C.textDim} />
+            <span className="text-xs font-medium" style={{ color: C.textDim }}>Cuentas</span>
+          </button>
+        </div>
       </div>
 
       {cuentas.length === 0 ? (
-        <div
-          className="rounded-2xl p-4 mb-4 text-center"
-          style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.border}` }}
-        >
-          <p className="text-sm mb-3" style={{ color: C.textDim }}>
-            Creá tu primera cuenta para empezar a registrar operaciones.
-          </p>
-          <button
-            onClick={onIrCuentas}
-            className="rounded-xl px-4 py-2.5 text-sm font-semibold"
-            style={{ backgroundColor: C.green, color: "#08090B" }}
-          >
-            Crear cuenta
-          </button>
-        </div>
+        <p className="text-xs mb-4" style={{ color: C.textDim }}>
+          Todavía no tenés cuentas — creá una con el + de arriba para empezar a registrar operaciones.
+        </p>
       ) : (
         <div className="flex gap-2 overflow-x-auto pb-1 mb-4" style={{ scrollbarWidth: "none" }}>
           <button
@@ -5806,7 +5808,7 @@ function BitacoraDashboard({ trades, cuentas, movimientos, onBack, onIrOperacion
         <div className="rounded-2xl px-4 py-4" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
           <div className="text-[11px] tracking-wide font-medium mb-1" style={{ color: C.textDim }}>BALANCE</div>
           <div className="text-xl font-bold" style={{ color: balanceTotal >= 0 ? C.green : C.red }}>
-            {balanceTotal >= 0 ? "+" : ""}{balanceTotal.toFixed(2)}
+            {balanceTotal >= 0 ? "+" : ""}{formatMoneyAR(balanceTotal)}
           </div>
         </div>
         <div className="rounded-2xl px-4 py-4" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
@@ -5844,10 +5846,19 @@ function BitacoraDashboard({ trades, cuentas, movimientos, onBack, onIrOperacion
         className="w-full rounded-2xl py-3 mb-5 text-sm font-semibold"
         style={{ backgroundColor: C.green, color: "#08090B" }}
       >
-        + Registrar operación
+        Operaciones
       </button>
 
       <BitacoraCalendario trades={tradesFiltrados} embedded />
+
+      {showQuickCuentaForm && (
+        <BitacoraCuentaForm
+          accessToken={accessToken}
+          userId={userId}
+          onClose={() => setShowQuickCuentaForm(false)}
+          onCreated={onChanged}
+        />
+      )}
     </div>
   );
 }
@@ -5930,9 +5941,12 @@ function BitacoraRoot({ session, onBack }) {
       trades={trades}
       cuentas={cuentas}
       movimientos={movimientos}
+      accessToken={session.accessToken}
+      userId={session.userId}
       onBack={onBack}
       onIrOperaciones={() => setView("operaciones")}
       onIrCuentas={() => setView("cuentas")}
+      onChanged={load}
     />
   );
 }
