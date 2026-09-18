@@ -1369,6 +1369,11 @@ function AdminForm({ onClose, onCreated, existingSignal, onDeleted }) {
   const [estado, setEstado] = useState(existingSignal?.estado || "pendiente");
   const [autor, setAutor] = useState(existingSignal?.autor || "");
   const [nota, setNota] = useState(existingSignal?.nota || "");
+  const [fechaCarga, setFechaCarga] = useState(() => {
+    const base = existingSignal?.createdAt ? new Date(existingSignal.createdAt) : new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${base.getFullYear()}-${pad(base.getMonth() + 1)}-${pad(base.getDate())}T${pad(base.getHours())}:${pad(base.getMinutes())}`;
+  });
   const [file, setFile] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
@@ -1417,6 +1422,7 @@ function AdminForm({ onClose, onCreated, existingSignal, onDeleted }) {
         autor: autor.trim(),
         nota: nota.trim() || null,
         imagen_url: imagenUrl,
+        created_at: new Date(fechaCarga).toISOString(),
       };
       if (isEdit) {
         await updateSignal(existingSignal.id, payload);
@@ -1560,6 +1566,22 @@ function AdminForm({ onClose, onCreated, existingSignal, onDeleted }) {
               Distancia al SL: <span className="font-mono font-semibold" style={{ color: C.text }}>{pips}</span> pips (calculado automáticamente)
             </div>
           )}
+
+          <div>
+            <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>
+              FECHA Y HORA DE LA SEÑAL
+            </label>
+            <input
+              type="datetime-local"
+              value={fechaCarga}
+              onChange={(e) => setFechaCarga(e.target.value)}
+              className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
+              style={inputStyle}
+            />
+            <p className="text-[11px] mt-1" style={{ color: C.textDim }}>
+              Por defecto es ahora. Cambiala si querés cargar una señal con fecha pasada.
+            </p>
+          </div>
 
           <div>
             <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>TRADER QUE ENVÍA LA SEÑAL</label>
@@ -2832,10 +2854,21 @@ function FlyerPopup({ flyers, onClose }) {
   const [index, setIndex] = useState(0);
   const flyer = flyers[index];
   const esUltimo = index >= flyers.length - 1;
+  const esPrimero = index === 0;
 
   const avanzar = () => {
     if (esUltimo) onClose();
     else setIndex((i) => i + 1);
+  };
+
+  const irSiguiente = (e) => {
+    e.stopPropagation();
+    if (!esUltimo) setIndex((i) => i + 1);
+  };
+
+  const irAnterior = (e) => {
+    e.stopPropagation();
+    if (!esPrimero) setIndex((i) => i - 1);
   };
 
   return (
@@ -2844,51 +2877,73 @@ function FlyerPopup({ flyers, onClose }) {
       style={{ backgroundColor: "rgba(0,0,0,0.75)" }}
       onClick={avanzar}
     >
-      <div className="w-full max-w-sm relative" onClick={(e) => e.stopPropagation()}>
-        <button
-          onClick={avanzar}
-          className="absolute -top-3 -right-3 w-8 h-8 rounded-full flex items-center justify-center z-10"
-          style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
-        >
-          <X size={16} color={C.text} />
-        </button>
-        <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
-          <img src={flyer.imagen_url} alt="Novedad" className="w-full object-cover" />
-          {(flyer.texto || flyer.enlace) && (
-            <div className="p-4">
-              {flyer.texto && (
-                <p className="text-sm text-center mb-3" style={{ color: C.text }}>{flyer.texto}</p>
-              )}
-              {flyer.enlace && (
-                <a
-                  href={flyer.enlace}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={avanzar}
-                  className="block w-full text-center rounded-xl py-3 text-sm font-semibold"
-                  style={{ backgroundColor: C.green, color: "#08090B" }}
-                >
-                  Ver más
-                </a>
-              )}
+      <div className="w-full max-w-sm relative flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+        {flyers.length > 1 && (
+          <button
+            onClick={irAnterior}
+            disabled={esPrimero}
+            className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+            style={{ backgroundColor: "rgba(255,255,255,0.12)", opacity: esPrimero ? 0.3 : 1 }}
+          >
+            <ChevronLeft size={18} color="#fff" />
+          </button>
+        )}
+        <div className="flex-1 min-w-0 relative">
+          <button
+            onClick={onClose}
+            className="absolute -top-3 -right-3 w-8 h-8 rounded-full flex items-center justify-center z-10"
+            style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
+          >
+            <X size={16} color={C.text} />
+          </button>
+          <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
+            <img src={flyer.imagen_url} alt="Novedad" className="w-full object-cover" />
+            {(flyer.texto || flyer.enlace) && (
+              <div className="p-4">
+                {flyer.texto && (
+                  <p className="text-sm text-center mb-3" style={{ color: C.text }}>{flyer.texto}</p>
+                )}
+                {flyer.enlace && (
+                  <a
+                    href={flyer.enlace}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={avanzar}
+                    className="block w-full text-center rounded-xl py-3 text-sm font-semibold"
+                    style={{ backgroundColor: C.green, color: "#08090B" }}
+                  >
+                    Ver más
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
+          {flyers.length > 1 && (
+            <div className="flex items-center justify-center gap-1.5 mt-4">
+              {flyers.map((_, i) => (
+                <div
+                  key={i}
+                  className="rounded-full"
+                  style={{
+                    width: i === index ? 16 : 6,
+                    height: 6,
+                    backgroundColor: i === index ? "#fff" : "rgba(255,255,255,0.4)",
+                    transition: "width 0.2s",
+                  }}
+                />
+              ))}
             </div>
           )}
         </div>
         {flyers.length > 1 && (
-          <div className="flex items-center justify-center gap-1.5 mt-4">
-            {flyers.map((_, i) => (
-              <div
-                key={i}
-                className="rounded-full"
-                style={{
-                  width: i === index ? 16 : 6,
-                  height: 6,
-                  backgroundColor: i === index ? "#fff" : "rgba(255,255,255,0.4)",
-                  transition: "width 0.2s",
-                }}
-              />
-            ))}
-          </div>
+          <button
+            onClick={irSiguiente}
+            disabled={esUltimo}
+            className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+            style={{ backgroundColor: "rgba(255,255,255,0.12)", opacity: esUltimo ? 0.3 : 1 }}
+          >
+            <ChevronRight size={18} color="#fff" />
+          </button>
         )}
       </div>
     </div>
@@ -4907,9 +4962,15 @@ function BitacoraTradeForm({ trade, accessToken, userId, cuentas, onClose, onSav
                 value={simbolo}
                 onChange={(e) => setSimbolo(e.target.value)}
                 placeholder="Ej: EURUSD"
+                list="instrumentos-comunes-bitacora"
                 className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
                 style={inputStyle}
               />
+              <datalist id="instrumentos-comunes-bitacora">
+                {INSTRUMENTOS_COMUNES.map((i) => (
+                  <option key={i} value={i} />
+                ))}
+              </datalist>
             </div>
           </div>
 
