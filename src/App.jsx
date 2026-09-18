@@ -47,6 +47,7 @@ import {
   ChevronDown,
   Folder,
   TrendingUp,
+  TrendingDown,
   LayoutDashboard,
   ListChecks,
   ArrowUpRight,
@@ -562,6 +563,76 @@ async function deleteBitacoraTrade(id, accessToken) {
 
 async function uploadBitacoraCaptura(file) {
   return uploadToBucket("bitacora-capturas", file);
+}
+
+// ---------- Cuentas de trading (Bitácora) ----------
+async function fetchBitacoraCuentas(accessToken) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/bitacora_cuentas?select=*&order=created_at.asc`, {
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) throw new Error("No se pudieron cargar tus cuentas");
+  return res.json();
+}
+
+async function createBitacoraCuenta(payload, accessToken) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/bitacora_cuentas`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      Prefer: "return=representation",
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error("No se pudo crear la cuenta");
+  return res.json();
+}
+
+async function deleteBitacoraCuenta(id, accessToken) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/bitacora_cuentas?id=eq.${id}`, {
+    method: "DELETE",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+  if (!res.ok) throw new Error("No se pudo eliminar la cuenta");
+}
+
+// ---------- Ingresos y egresos (Bitácora) ----------
+async function fetchBitacoraMovimientos(accessToken) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/bitacora_movimientos?select=*&order=fecha.desc,created_at.desc`, {
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) throw new Error("No se pudieron cargar los movimientos");
+  return res.json();
+}
+
+async function createBitacoraMovimiento(payload, accessToken) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/bitacora_movimientos`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      Prefer: "return=representation",
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error("No se pudo registrar el movimiento");
+  return res.json();
+}
+
+async function deleteBitacoraMovimiento(id, accessToken) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/bitacora_movimientos?id=eq.${id}`, {
+    method: "DELETE",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+  if (!res.ok) throw new Error("No se pudo eliminar el movimiento");
 }
 
 
@@ -3166,19 +3237,13 @@ function RachaDiaria({ signals }) {
                 {d.getDate()}
               </span>
               <div className="flex flex-col items-center gap-1 min-h-[18px] justify-start">
-                {resultados.length === 0 ? (
-                  <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: C.border }} />
-                ) : (
-                  resultados.map((r, j) =>
-                    r === "ganada" ? (
-                      <Check key={j} size={14} color={C.green} strokeWidth={3} />
-                    ) : r === "be" ? (
-                      <Dices key={j} size={14} color="#FFFFFF" strokeWidth={3} />
-                    ) : (
-                      <X key={j} size={14} color={C.red} strokeWidth={3} />
-                    )
-                  )
-                )}
+                {Array.from({ length: Math.max(5, resultados.length) }).map((_, j) => {
+                  const r = resultados[j];
+                  if (!r) return <div key={j} className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: C.border }} />;
+                  if (r === "ganada") return <Check key={j} size={14} color={C.green} strokeWidth={3} />;
+                  if (r === "be") return <Dices key={j} size={14} color="#FFFFFF" strokeWidth={3} />;
+                  return <X key={j} size={14} color={C.red} strokeWidth={3} />;
+                })}
               </div>
             </div>
           );
@@ -3302,25 +3367,13 @@ function InicioDashboard({ signals, isAdmin, onOpenSignal, onNuevaSenal, onNavig
       </div>
 
       <button
-        onClick={() => onNavigate("automatizaciones")}
-        className="w-full rounded-xl px-2 py-3 flex flex-col items-center justify-center gap-1 mb-2"
-        style={{ backgroundColor: "transparent", border: `1px solid ${C.borderSoft}` }}
-      >
-        <div className="flex items-center justify-center gap-2">
-          <Wrench size={15} color={C.textDim} />
-          <span className="text-[11px] font-semibold text-center uppercase" style={{ color: C.textDim }}>
-            Automatizaciones / EAs (MT5 - TradingView)
-          </span>
-        </div>
-        <span className="text-[9px] text-center" style={{ color: C.textDim }}>
-          (Solo para usuarios con membresía PRO)
-        </span>
-      </button>
-
-      <button
         onClick={() => onNavigate("mas")}
         className="w-full rounded-xl px-2 py-3 flex items-center justify-center gap-2 mb-4"
-        style={{ backgroundColor: "transparent", border: `1px solid ${C.borderSoft}` }}
+        style={{
+          backgroundColor: C.cardAlt,
+          border: `1px solid ${C.border}`,
+          boxShadow: "0 4px 14px rgba(0,0,0,0.22)",
+        }}
       >
         <Menu size={15} color={C.textDim} />
         <span className="text-[11px] font-semibold" style={{ color: C.textDim }}>MÁS</span>
@@ -3356,6 +3409,22 @@ function InicioDashboard({ signals, isAdmin, onOpenSignal, onNuevaSenal, onNavig
       )}
 
       <RachaDiaria signals={signals} />
+
+      <button
+        onClick={() => onNavigate("automatizaciones")}
+        className="w-full rounded-xl px-2 py-3 flex flex-col items-center justify-center gap-1 mt-4 mb-2"
+        style={{ backgroundColor: "#F0B429", border: "1px solid #F0B429" }}
+      >
+        <div className="flex items-center justify-center gap-2">
+          <Wrench size={15} color="#08090B" />
+          <span className="text-[11px] font-bold text-center uppercase" style={{ color: "#08090B" }}>
+            Automatizaciones / EAs (MT5 - TradingView)
+          </span>
+        </div>
+        <span className="text-[9px] text-center font-medium" style={{ color: "#08090B" }}>
+          (Solo para usuarios con membresía PRO)
+        </span>
+      </button>
     </div>
   );
 }
@@ -4627,8 +4696,9 @@ const BITACORA_RESULTADOS = [
   { value: "be", label: "BE" },
 ];
 
-function BitacoraTradeForm({ trade, accessToken, userId, onClose, onSaved }) {
+function BitacoraTradeForm({ trade, accessToken, userId, cuentas, onClose, onSaved }) {
   const isEdit = !!trade;
+  const [cuentaId, setCuentaId] = useState(trade?.cuenta_id || cuentas[0]?.id || "");
   const [direccion, setDireccion] = useState(trade?.direccion || "compra");
   const [mercado, setMercado] = useState(trade?.mercado || "forex");
   const [resultadoTipo, setResultadoTipo] = useState(trade?.tipo_orden || "ganada");
@@ -4664,6 +4734,7 @@ function BitacoraTradeForm({ trade, accessToken, userId, onClose, onSaved }) {
       const resultadoFinal =
         resultadoTipo === "perdida" ? -montoAbs : resultadoTipo === "ganada" ? montoAbs : Number(resultado || 0);
       const payload = {
+        cuenta_id: cuentaId,
         direccion,
         mercado,
         tipo_orden: resultadoTipo,
@@ -4729,6 +4800,15 @@ function BitacoraTradeForm({ trade, accessToken, userId, onClose, onSaved }) {
         >
           <div className="text-[11px] tracking-widest font-semibold mb-3" style={{ color: C.textDim }}>
             OPERACIÓN
+          </div>
+
+          <div className="mb-3">
+            <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>CUENTA</label>
+            <select value={cuentaId} onChange={(e) => setCuentaId(e.target.value)} className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none" style={selectStyle}>
+              {cuentas.map((c) => (
+                <option key={c.id} value={c.id}>{c.nombre}</option>
+              ))}
+            </select>
           </div>
 
           <div className="grid grid-cols-2 gap-3 mb-3">
@@ -4862,11 +4942,11 @@ function BitacoraTradeForm({ trade, accessToken, userId, onClose, onSaved }) {
 
         <button
           onClick={handleSubmit}
-          disabled={!simbolo.trim() || resultado === "" || submitting}
+          disabled={!simbolo.trim() || resultado === "" || !cuentaId || submitting}
           className="w-full rounded-2xl py-4 text-[15px] font-semibold"
           style={{
-            backgroundColor: simbolo.trim() && resultado !== "" && !submitting ? C.green : C.borderSoft,
-            color: simbolo.trim() && resultado !== "" && !submitting ? "#08090B" : C.textDim,
+            backgroundColor: simbolo.trim() && resultado !== "" && cuentaId && !submitting ? C.green : C.borderSoft,
+            color: simbolo.trim() && resultado !== "" && cuentaId && !submitting ? "#08090B" : C.textDim,
           }}
         >
           {submitting ? "Guardando..." : isEdit ? "Guardar cambios" : "Registrar operación"}
@@ -4941,15 +5021,422 @@ function BitacoraMenu({ onSelect, onBack }) {
   );
 }
 
-function BitacoraDashboard({ trades, onBack }) {
-  const cerradas = trades.filter((t) => Number(t.resultado) !== 0);
-  const ganadas = trades.filter((t) => Number(t.resultado) > 0).length;
-  const perdidas = trades.filter((t) => Number(t.resultado) < 0).length;
-  const neto = trades.reduce((acc, t) => acc + Number(t.resultado || 0), 0);
+function calcularBalanceCuenta(cuenta, trades, movimientos) {
+  const netoTrades = trades
+    .filter((t) => t.cuenta_id === cuenta.id)
+    .reduce((acc, t) => acc + Number(t.resultado || 0), 0);
+  const ingresos = movimientos
+    .filter((m) => m.cuenta_id === cuenta.id && m.tipo === "ingreso")
+    .reduce((acc, m) => acc + Number(m.monto || 0), 0);
+  const egresos = movimientos
+    .filter((m) => m.cuenta_id === cuenta.id && m.tipo === "egreso")
+    .reduce((acc, m) => acc + Number(m.monto || 0), 0);
+  return Number(cuenta.capital_inicial || 0) + netoTrades + ingresos - egresos;
+}
+
+function BitacoraCuentaForm({ accessToken, userId, onClose, onCreated }) {
+  const [nombre, setNombre] = useState("");
+  const [capital, setCapital] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+  const inputStyle = { backgroundColor: C.cardAlt, color: C.text, border: `1px solid ${C.border}` };
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await createBitacoraCuenta(
+        { user_id: userId, nombre: nombre.trim(), capital_inicial: Number(capital || 0) },
+        accessToken
+      );
+      onCreated();
+      onClose();
+    } catch (err) {
+      setError(err.message || "No se pudo crear la cuenta");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center"
+      style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
+      onClick={onClose}
+    >
+      <div
+        className="rounded-t-3xl w-full max-w-md p-6"
+        style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderBottom: "none" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <span className="text-[15px] font-semibold" style={{ color: C.text }}>Nueva cuenta</span>
+          <button onClick={onClose}>
+            <X size={20} color={C.textDim} />
+          </button>
+        </div>
+
+        <div className="mb-3">
+          <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>NOMBRE DE LA CUENTA</label>
+          <input
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            placeholder="Ej: Cuenta Real, Fondeo FTMO..."
+            className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
+            style={inputStyle}
+          />
+        </div>
+
+        <div className="mb-4">
+          <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>CAPITAL INICIAL ($)</label>
+          <input
+            type="number"
+            step="0.01"
+            value={capital}
+            onChange={(e) => setCapital(e.target.value)}
+            placeholder="Ej: 1000"
+            className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
+            style={inputStyle}
+          />
+        </div>
+
+        {error && <p className="text-sm text-center mb-3" style={{ color: C.red }}>{error}</p>}
+
+        <button
+          onClick={handleSubmit}
+          disabled={!nombre.trim() || capital === "" || submitting}
+          className="w-full rounded-2xl py-4 text-[15px] font-semibold"
+          style={{
+            backgroundColor: nombre.trim() && capital !== "" && !submitting ? C.green : C.borderSoft,
+            color: nombre.trim() && capital !== "" && !submitting ? "#08090B" : C.textDim,
+          }}
+        >
+          {submitting ? "Creando..." : "Crear cuenta"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function BitacoraMovimientoForm({ cuenta, accessToken, userId, onClose, onCreated }) {
+  const [tipo, setTipo] = useState("ingreso");
+  const [monto, setMonto] = useState("");
+  const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [nota, setNota] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+  const inputStyle = { backgroundColor: C.cardAlt, color: C.text, border: `1px solid ${C.border}` };
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await createBitacoraMovimiento(
+        {
+          user_id: userId,
+          cuenta_id: cuenta.id,
+          tipo,
+          monto: Math.abs(Number(monto || 0)),
+          fecha,
+          nota: nota.trim() || null,
+        },
+        accessToken
+      );
+      onCreated();
+      onClose();
+    } catch (err) {
+      setError(err.message || "No se pudo registrar el movimiento");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center"
+      style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
+      onClick={onClose}
+    >
+      <div
+        className="rounded-t-3xl w-full max-w-md p-6"
+        style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderBottom: "none" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <span className="text-[15px] font-semibold" style={{ color: C.text }}>Ingreso / Egreso — {cuenta.nombre}</span>
+          <button onClick={onClose}>
+            <X size={20} color={C.textDim} />
+          </button>
+        </div>
+
+        <div className="mb-3">
+          <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>TIPO</label>
+          <div className="flex gap-2 mt-1">
+            {[
+              { value: "ingreso", label: "Ingreso", color: C.green },
+              { value: "egreso", label: "Egreso", color: C.red },
+            ].map((op) => (
+              <button
+                key={op.value}
+                onClick={() => setTipo(op.value)}
+                className="flex-1 rounded-xl py-3 text-sm font-semibold"
+                style={{
+                  backgroundColor: tipo === op.value ? op.color : C.cardAlt,
+                  color: tipo === op.value ? "#08090B" : C.textDim,
+                  border: `1px solid ${tipo === op.value ? op.color : C.border}`,
+                }}
+              >
+                {op.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <div>
+            <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>MONTO ($)</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={monto}
+              onChange={(e) => setMonto(e.target.value)}
+              placeholder="Ej: 200"
+              className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
+              style={inputStyle}
+            />
+          </div>
+          <div>
+            <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>FECHA</label>
+            <input
+              type="date"
+              value={fecha}
+              onChange={(e) => setFecha(e.target.value)}
+              className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
+              style={inputStyle}
+            />
+          </div>
+        </div>
+
+        <div className="mb-4">
+          <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>NOTA (OPCIONAL)</label>
+          <input
+            value={nota}
+            onChange={(e) => setNota(e.target.value)}
+            placeholder="Ej: Retiro de ganancias"
+            className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
+            style={inputStyle}
+          />
+        </div>
+
+        {error && <p className="text-sm text-center mb-3" style={{ color: C.red }}>{error}</p>}
+
+        <button
+          onClick={handleSubmit}
+          disabled={!monto || Number(monto) <= 0 || submitting}
+          className="w-full rounded-2xl py-4 text-[15px] font-semibold"
+          style={{
+            backgroundColor: monto && Number(monto) > 0 && !submitting ? C.green : C.borderSoft,
+            color: monto && Number(monto) > 0 && !submitting ? "#08090B" : C.textDim,
+          }}
+        >
+          {submitting ? "Guardando..." : "Registrar movimiento"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function BitacoraCuentasView({ cuentas, trades, movimientos, accessToken, userId, onBack, onChanged }) {
+  const [showCuentaForm, setShowCuentaForm] = useState(false);
+  const [selectedCuenta, setSelectedCuenta] = useState(null);
+  const [showMovForm, setShowMovForm] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+
+  const handleDeleteCuenta = async (cuenta) => {
+    if (!window.confirm(`¿Eliminar la cuenta "${cuenta.nombre}"? Esto también borra sus operaciones y movimientos.`)) return;
+    setDeletingId(cuenta.id);
+    try {
+      await deleteBitacoraCuenta(cuenta.id, accessToken);
+      setSelectedCuenta(null);
+      onChanged();
+    } catch (err) {
+      alert(err.message || "No se pudo eliminar");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleDeleteMov = async (mov) => {
+    if (!window.confirm("¿Eliminar este movimiento?")) return;
+    try {
+      await deleteBitacoraMovimiento(mov.id, accessToken);
+      onChanged();
+    } catch (err) {
+      alert(err.message || "No se pudo eliminar");
+    }
+  };
+
+  if (selectedCuenta) {
+    const cuenta = cuentas.find((c) => c.id === selectedCuenta) || selectedCuenta;
+    const balance = calcularBalanceCuenta(cuenta, trades, movimientos);
+    const movsCuenta = movimientos.filter((m) => m.cuenta_id === cuenta.id);
+    return (
+      <div className="max-w-md mx-auto">
+        <ScreenHeader title={cuenta.nombre} onBack={() => setSelectedCuenta(null)} />
+
+        <div className="rounded-2xl px-4 py-4 mb-4" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
+          <div className="text-[11px] tracking-wide font-medium mb-1" style={{ color: C.textDim }}>BALANCE ACTUAL</div>
+          <div className="text-2xl font-bold" style={{ color: balance >= 0 ? C.green : C.red }}>
+            {balance >= 0 ? "+" : ""}{balance.toFixed(2)}
+          </div>
+          <div className="text-xs mt-1" style={{ color: C.textDim }}>Capital inicial: {Number(cuenta.capital_inicial).toFixed(2)}</div>
+        </div>
+
+        <button
+          onClick={() => setShowMovForm(true)}
+          className="w-full rounded-2xl py-3 mb-4 text-sm font-semibold"
+          style={{ backgroundColor: C.green, color: "#08090B" }}
+        >
+          + Ingreso / Egreso
+        </button>
+
+        <div className="text-[11px] tracking-widest font-semibold mb-2" style={{ color: C.textDim }}>MOVIMIENTOS</div>
+        <div className="flex flex-col gap-2 mb-4">
+          {movsCuenta.length === 0 && (
+            <p className="text-sm text-center py-6" style={{ color: C.textDim }}>Todavía no hay movimientos.</p>
+          )}
+          {movsCuenta.map((m) => (
+            <div
+              key={m.id}
+              className="rounded-2xl px-4 py-3 flex items-center gap-3"
+              style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
+            >
+              <div
+                className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                style={{ backgroundColor: m.tipo === "ingreso" ? C.greenSoft : C.redSoft }}
+              >
+                {m.tipo === "ingreso" ? (
+                  <TrendingUp size={16} color={C.green} />
+                ) : (
+                  <TrendingDown size={16} color={C.red} />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[13px] font-medium" style={{ color: C.text }}>
+                  {m.tipo === "ingreso" ? "Ingreso" : "Egreso"}
+                </div>
+                <div className="text-xs truncate" style={{ color: C.textDim }}>{m.fecha}{m.nota ? ` · ${m.nota}` : ""}</div>
+              </div>
+              <div className="font-semibold text-[14px] shrink-0" style={{ color: m.tipo === "ingreso" ? C.green : C.red }}>
+                {m.tipo === "ingreso" ? "+" : "-"}{Number(m.monto).toFixed(2)}
+              </div>
+              <button onClick={() => handleDeleteMov(m)}>
+                <X size={14} color={C.textDim} />
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {!deletingId || deletingId !== cuenta.id ? (
+          <button
+            onClick={() => handleDeleteCuenta(cuenta)}
+            className="w-full rounded-2xl py-3 text-[13px] font-medium"
+            style={{ color: C.red }}
+          >
+            Eliminar cuenta
+          </button>
+        ) : (
+          <p className="text-sm text-center" style={{ color: C.textDim }}>Eliminando...</p>
+        )}
+
+        {showMovForm && (
+          <BitacoraMovimientoForm
+            cuenta={cuenta}
+            accessToken={accessToken}
+            userId={userId}
+            onClose={() => setShowMovForm(false)}
+            onCreated={onChanged}
+          />
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-md mx-auto">
+      <ScreenHeader title="Cuentas" onBack={onBack} />
+
+      <button
+        onClick={() => setShowCuentaForm(true)}
+        className="w-full rounded-2xl py-3 mb-4 text-sm font-semibold"
+        style={{ backgroundColor: C.green, color: "#08090B" }}
+      >
+        + Nueva cuenta
+      </button>
+
+      <div className="flex flex-col gap-2">
+        {cuentas.length === 0 && (
+          <p className="text-sm text-center py-10" style={{ color: C.textDim }}>Todavía no creaste ninguna cuenta.</p>
+        )}
+        {cuentas.map((c) => {
+          const balance = calcularBalanceCuenta(c, trades, movimientos);
+          return (
+            <button
+              key={c.id}
+              onClick={() => setSelectedCuenta(c.id)}
+              className="rounded-2xl px-4 py-3 flex items-center justify-between text-left"
+              style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
+            >
+              <div>
+                <div className="font-semibold text-[14px]" style={{ color: C.text }}>{c.nombre}</div>
+                <div className="text-xs mt-0.5" style={{ color: C.textDim }}>Capital inicial: {Number(c.capital_inicial).toFixed(2)}</div>
+              </div>
+              <div className="text-right">
+                <div className="font-bold text-[15px]" style={{ color: balance >= 0 ? C.green : C.red }}>
+                  {balance >= 0 ? "+" : ""}{balance.toFixed(2)}
+                </div>
+                <ChevronRight size={14} color={C.textDim} className="ml-auto mt-1" />
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {showCuentaForm && (
+        <BitacoraCuentaForm
+          accessToken={accessToken}
+          userId={userId}
+          onClose={() => setShowCuentaForm(false)}
+          onCreated={onChanged}
+        />
+      )}
+    </div>
+  );
+}
+
+function BitacoraDashboard({ trades, cuentas, movimientos, onBack, onIrOperaciones, onIrCuentas }) {
+  const [selectedCuentaId, setSelectedCuentaId] = useState("todas");
+
+  const tradesFiltrados =
+    selectedCuentaId === "todas" ? trades : trades.filter((t) => String(t.cuenta_id) === String(selectedCuentaId));
+
+  const cerradas = tradesFiltrados.filter((t) => Number(t.resultado) !== 0);
+  const ganadas = tradesFiltrados.filter((t) => Number(t.resultado) > 0).length;
+  const perdidas = tradesFiltrados.filter((t) => Number(t.resultado) < 0).length;
+  const netoTrades = tradesFiltrados.reduce((acc, t) => acc + Number(t.resultado || 0), 0);
   const winRate = cerradas.length > 0 ? Math.round((ganadas / cerradas.length) * 100) : 0;
 
-  // Curva de capital acumulada (en orden cronológico)
-  const ordenadas = [...trades].sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+  const balanceTotal =
+    selectedCuentaId === "todas"
+      ? cuentas.reduce((acc, c) => acc + calcularBalanceCuenta(c, trades, movimientos), 0)
+      : (() => {
+          const c = cuentas.find((c) => String(c.id) === String(selectedCuentaId));
+          return c ? calcularBalanceCuenta(c, trades, movimientos) : 0;
+        })();
+
+  // Curva de capital acumulada (en orden cronológico), sobre el resultado de las operaciones
+  const ordenadas = [...tradesFiltrados].sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
   let acc = 0;
   const puntos = ordenadas.map((t) => {
     acc += Number(t.resultado || 0);
@@ -4970,13 +5457,74 @@ function BitacoraDashboard({ trades, onBack }) {
 
   return (
     <div className="max-w-md mx-auto">
-      <ScreenHeader title="Dashboard" onBack={onBack} />
+      <button onClick={onBack} className="flex items-center gap-1.5 mb-3">
+        <ArrowLeft size={19} color={C.textDim} />
+        <span className="text-[13px] font-medium" style={{ color: C.textDim }}>Volver</span>
+      </button>
+
+      <div className="flex items-center justify-between mb-4">
+        <span className="text-[19px] font-bold" style={{ color: C.text }}>Bitácora</span>
+        <button
+          onClick={onIrCuentas}
+          className="flex items-center gap-1.5 rounded-full px-3 py-1.5"
+          style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.border}` }}
+        >
+          <Wrench size={13} color={C.textDim} />
+          <span className="text-xs font-medium" style={{ color: C.textDim }}>Cuentas</span>
+        </button>
+      </div>
+
+      {cuentas.length === 0 ? (
+        <div
+          className="rounded-2xl p-4 mb-4 text-center"
+          style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.border}` }}
+        >
+          <p className="text-sm mb-3" style={{ color: C.textDim }}>
+            Creá tu primera cuenta para empezar a registrar operaciones.
+          </p>
+          <button
+            onClick={onIrCuentas}
+            className="rounded-xl px-4 py-2.5 text-sm font-semibold"
+            style={{ backgroundColor: C.green, color: "#08090B" }}
+          >
+            Crear cuenta
+          </button>
+        </div>
+      ) : (
+        <div className="flex gap-2 overflow-x-auto pb-1 mb-4" style={{ scrollbarWidth: "none" }}>
+          <button
+            onClick={() => setSelectedCuentaId("todas")}
+            className="px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap"
+            style={{
+              backgroundColor: selectedCuentaId === "todas" ? C.green : "transparent",
+              color: selectedCuentaId === "todas" ? "#08090B" : C.textDim,
+              border: selectedCuentaId === "todas" ? "none" : `1px solid ${C.border}`,
+            }}
+          >
+            Todas
+          </button>
+          {cuentas.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => setSelectedCuentaId(c.id)}
+              className="px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap"
+              style={{
+                backgroundColor: String(selectedCuentaId) === String(c.id) ? C.green : "transparent",
+                color: String(selectedCuentaId) === String(c.id) ? "#08090B" : C.textDim,
+                border: String(selectedCuentaId) === String(c.id) ? "none" : `1px solid ${C.border}`,
+              }}
+            >
+              {c.nombre}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3 mb-3">
         <div className="rounded-2xl px-4 py-4" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
-          <div className="text-[11px] tracking-wide font-medium mb-1" style={{ color: C.textDim }}>NETO</div>
-          <div className="text-xl font-bold" style={{ color: neto >= 0 ? C.green : C.red }}>
-            {neto >= 0 ? "+" : ""}{neto.toFixed(2)}
+          <div className="text-[11px] tracking-wide font-medium mb-1" style={{ color: C.textDim }}>BALANCE</div>
+          <div className="text-xl font-bold" style={{ color: balanceTotal >= 0 ? C.green : C.red }}>
+            {balanceTotal >= 0 ? "+" : ""}{balanceTotal.toFixed(2)}
           </div>
         </div>
         <div className="rounded-2xl px-4 py-4" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
@@ -4985,7 +5533,7 @@ function BitacoraDashboard({ trades, onBack }) {
         </div>
         <div className="rounded-2xl px-4 py-4" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
           <div className="text-[11px] tracking-wide font-medium mb-1" style={{ color: C.textDim }}>OPERACIONES</div>
-          <div className="text-xl font-bold" style={{ color: C.text }}>{trades.length}</div>
+          <div className="text-xl font-bold" style={{ color: C.text }}>{tradesFiltrados.length}</div>
         </div>
         <div className="rounded-2xl px-4 py-4" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
           <div className="text-[11px] tracking-wide font-medium mb-1" style={{ color: C.textDim }}>G / P</div>
@@ -4995,12 +5543,12 @@ function BitacoraDashboard({ trades, onBack }) {
         </div>
       </div>
 
-      <div className="rounded-2xl px-4 py-4" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
-        <div className="text-[11px] tracking-wide font-medium mb-3" style={{ color: C.textDim }}>EVOLUCIÓN DE CAPITAL</div>
+      <div className="rounded-2xl px-4 py-4 mb-4" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
+        <div className="text-[11px] tracking-wide font-medium mb-3" style={{ color: C.textDim }}>EVOLUCIÓN (P&amp;L DE OPERACIONES)</div>
         {puntos.length > 1 ? (
           <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 100 }} preserveAspectRatio="none">
             <line x1="0" y1={H - ((0 - min) / range) * H} x2={W} y2={H - ((0 - min) / range) * H} stroke={C.borderSoft} strokeWidth="1" strokeDasharray="4 4" />
-            <path d={path} fill="none" stroke={neto >= 0 ? C.green : C.red} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+            <path d={path} fill="none" stroke={netoTrades >= 0 ? C.green : C.red} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         ) : (
           <p className="text-sm text-center py-6" style={{ color: C.textDim }}>
@@ -5008,268 +5556,39 @@ function BitacoraDashboard({ trades, onBack }) {
           </p>
         )}
       </div>
-    </div>
-  );
-}
-
-function BitacoraOperaciones({ trades, accessToken, userId, onBack, onChanged }) {
-  const [editing, setEditing] = useState(null); // null | "new" | trade object
-  const [viewingImage, setViewingImage] = useState(null);
-
-  return (
-    <div className="max-w-md mx-auto">
-      <ScreenHeader title="Operaciones" onBack={onBack} />
 
       <button
-        onClick={() => setEditing("new")}
-        className="w-full rounded-2xl py-3 mb-4 text-sm font-semibold"
+        onClick={onIrOperaciones}
+        className="w-full rounded-2xl py-3 mb-5 text-sm font-semibold"
         style={{ backgroundColor: C.green, color: "#08090B" }}
       >
         + Registrar operación
       </button>
 
-      <div className="flex flex-col gap-2">
-        {trades.length === 0 && (
-          <p className="text-sm text-center py-10" style={{ color: C.textDim }}>Todavía no cargaste operaciones.</p>
-        )}
-        {trades.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setEditing(t)}
-            className="rounded-2xl px-4 py-3 flex items-center gap-3 text-left"
-            style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
-          >
-            {t.captura_url ? (
-              <img
-                src={t.captura_url}
-                alt=""
-                className="w-11 h-11 rounded-xl object-cover shrink-0"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setViewingImage(t.captura_url);
-                }}
-              />
-            ) : (
-              <div
-                className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
-                style={{ backgroundColor: C.cardAlt }}
-              >
-                {t.direccion === "venta" ? (
-                  <ArrowDownRight size={18} color={C.red} />
-                ) : (
-                  <ArrowUpRight size={18} color={C.green} />
-                )}
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <div className="font-semibold text-[14px]" style={{ color: C.text }}>{t.simbolo}</div>
-              <div className="text-xs truncate" style={{ color: C.textDim }}>
-                {t.fecha} · {t.direccion === "venta" ? "Venta" : "Compra"}
-                {t.estrategia ? ` · ${t.estrategia}` : ""}
-                {t.estado === "abierta" ? " · Abierta" : ""}
-              </div>
-            </div>
-            {t.tipo_orden && (
-              <span
-                className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full shrink-0"
-                style={{
-                  backgroundColor: t.tipo_orden === "ganada" ? C.greenSoft : t.tipo_orden === "perdida" ? C.redSoft : C.cardAlt,
-                  color: t.tipo_orden === "ganada" ? C.green : t.tipo_orden === "perdida" ? C.red : C.textDim,
-                }}
-              >
-                {t.tipo_orden === "be" ? "BE" : t.tipo_orden === "ganada" ? "Ganada" : "Perdida"}
-              </span>
-            )}
-            <div className="font-bold text-[14px] shrink-0" style={{ color: Number(t.resultado) >= 0 ? C.green : C.red }}>
-              {Number(t.resultado) >= 0 ? "+" : ""}{Number(t.resultado).toFixed(2)}
-            </div>
-          </button>
-        ))}
-      </div>
-
-      {editing && (
-        <BitacoraTradeForm
-          trade={editing === "new" ? null : editing}
-          accessToken={accessToken}
-          userId={userId}
-          onClose={() => setEditing(null)}
-          onSaved={onChanged}
-        />
-      )}
-
-      {viewingImage && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-6"
-          style={{ backgroundColor: "rgba(0,0,0,0.85)" }}
-          onClick={() => setViewingImage(null)}
-        >
-          <img src={viewingImage} alt="Captura ampliada" className="max-w-full max-h-full rounded-xl" />
-        </div>
-      )}
-    </div>
-  );
-}
-
-function BitacoraCalendario({ trades, onBack }) {
-  const [cursor, setCursor] = useState(() => {
-    const d = new Date();
-    return new Date(d.getFullYear(), d.getMonth(), 1);
-  });
-  const [selectedDay, setSelectedDay] = useState(null);
-  const [viewingImage, setViewingImage] = useState(null);
-
-  const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-
-  const byDay = {};
-  trades.forEach((t) => {
-    if (!t.fecha) return;
-    if (!byDay[t.fecha]) byDay[t.fecha] = [];
-    byDay[t.fecha].push(t);
-  });
-
-  const year = cursor.getFullYear();
-  const month = cursor.getMonth();
-  const firstDay = new Date(year, month, 1);
-  const startOffset = (firstDay.getDay() + 6) % 7; // lunes=0
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-  const cells = [];
-  for (let i = 0; i < startOffset; i++) cells.push(null);
-  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
-
-  const ymd = (d) => `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-
-  const selectedTrades = selectedDay ? byDay[selectedDay] || [] : [];
-
-  return (
-    <div className="max-w-md mx-auto">
-      <ScreenHeader title="Calendario" onBack={onBack} />
-
-      <div className="flex items-center justify-between mb-3">
-        <button
-          onClick={() => setCursor(new Date(year, month - 1, 1))}
-          className="w-8 h-8 rounded-full flex items-center justify-center"
-          style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.border}` }}
-        >
-          <ChevronLeft size={16} color={C.textDim} />
-        </button>
-        <span className="font-semibold text-[14px]" style={{ color: C.text }}>{MESES[month]} {year}</span>
-        <button
-          onClick={() => setCursor(new Date(year, month + 1, 1))}
-          className="w-8 h-8 rounded-full flex items-center justify-center"
-          style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.border}` }}
-        >
-          <ChevronRight size={16} color={C.textDim} />
-        </button>
-      </div>
-
-      <div className="grid grid-cols-7 gap-1 mb-1">
-        {["L", "M", "X", "J", "V", "S", "D"].map((d, i) => (
-          <div key={i} className="text-center text-[10px] font-medium" style={{ color: C.textDim }}>{d}</div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-7 gap-1">
-        {cells.map((d, i) => {
-          if (d === null) return <div key={i} />;
-          const dayKey = ymd(d);
-          const dayTrades = byDay[dayKey] || [];
-          const total = dayTrades.reduce((acc, t) => acc + Number(t.resultado || 0), 0);
-          const hasTrades = dayTrades.length > 0;
-          const bg = !hasTrades ? "transparent" : total > 0 ? C.greenSoft : total < 0 ? C.redSoft : C.cardAlt;
-          const fg = !hasTrades ? C.textDim : total > 0 ? C.green : total < 0 ? C.red : C.textDim;
-          return (
-            <button
-              key={i}
-              onClick={() => hasTrades && setSelectedDay(dayKey)}
-              className="rounded-lg flex flex-col items-center justify-center py-1.5"
-              style={{ backgroundColor: bg, border: `1px solid ${hasTrades ? "transparent" : C.borderSoft}`, minHeight: 44 }}
-            >
-              <span className="text-[10px]" style={{ color: hasTrades ? fg : C.textDim }}>{d}</span>
-              {hasTrades && (
-                <span className="text-[8px] font-semibold" style={{ color: fg }}>
-                  {total >= 0 ? "+" : ""}{total.toFixed(0)}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      {selectedDay && (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center"
-          style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
-          onClick={() => setSelectedDay(null)}
-        >
-          <div
-            className="rounded-t-3xl w-full max-w-md p-6 max-h-[80vh] overflow-y-auto"
-            style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderBottom: "none" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-[15px] font-semibold" style={{ color: C.text }}>{selectedDay}</span>
-              <button onClick={() => setSelectedDay(null)}>
-                <X size={20} color={C.textDim} />
-              </button>
-            </div>
-            <div className="flex flex-col gap-2">
-              {selectedTrades.map((t) => (
-                <div
-                  key={t.id}
-                  className="rounded-2xl px-4 py-3 flex items-center gap-3"
-                  style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.border}` }}
-                >
-                  {t.captura_url ? (
-                    <img
-                      src={t.captura_url}
-                      alt=""
-                      className="w-12 h-12 rounded-xl object-cover shrink-0 cursor-pointer"
-                      onClick={() => setViewingImage(t.captura_url)}
-                    />
-                  ) : (
-                    <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: C.card }}>
-                      {t.direccion === "venta" ? <ArrowDownRight size={18} color={C.red} /> : <ArrowUpRight size={18} color={C.green} />}
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-[14px]" style={{ color: C.text }}>{t.simbolo}</div>
-                    {t.notas && <div className="text-xs truncate" style={{ color: C.textDim }}>{t.notas}</div>}
-                  </div>
-                  <div className="font-bold text-[14px] shrink-0" style={{ color: Number(t.resultado) >= 0 ? C.green : C.red }}>
-                    {Number(t.resultado) >= 0 ? "+" : ""}{Number(t.resultado).toFixed(2)}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {viewingImage && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center p-6"
-          style={{ backgroundColor: "rgba(0,0,0,0.85)" }}
-          onClick={() => setViewingImage(null)}
-        >
-          <img src={viewingImage} alt="Captura ampliada" className="max-w-full max-h-full rounded-xl" />
-        </div>
-      )}
+      <BitacoraCalendario trades={tradesFiltrados} embedded />
     </div>
   );
 }
 
 function BitacoraRoot({ session, onBack }) {
-  const [view, setView] = useState("menu"); // menu | dashboard | operaciones | calendario
+  const [view, setView] = useState("dashboard"); // dashboard | operaciones | cuentas
   const [trades, setTrades] = useState([]);
+  const [cuentas, setCuentas] = useState([]);
+  const [movimientos, setMovimientos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   const load = () => {
     setLoading(true);
-    fetchBitacoraTrades(session.accessToken)
-      .then((data) => {
-        setTrades(data);
+    Promise.all([
+      fetchBitacoraTrades(session.accessToken),
+      fetchBitacoraCuentas(session.accessToken),
+      fetchBitacoraMovimientos(session.accessToken),
+    ])
+      .then(([tradesData, cuentasData, movimientosData]) => {
+        setTrades(tradesData);
+        setCuentas(cuentasData);
+        setMovimientos(movimientosData);
         setError(null);
       })
       .catch((err) => setError(err.message))
@@ -5299,20 +5618,41 @@ function BitacoraRoot({ session, onBack }) {
     );
   }
 
-  if (view === "menu") return <BitacoraMenu onSelect={setView} onBack={onBack} />;
-  if (view === "dashboard") return <BitacoraDashboard trades={trades} onBack={() => setView("menu")} />;
   if (view === "operaciones")
     return (
       <BitacoraOperaciones
         trades={trades}
+        cuentas={cuentas}
         accessToken={session.accessToken}
         userId={session.userId}
-        onBack={() => setView("menu")}
+        onBack={() => setView("dashboard")}
+        onChanged={load}
+        onIrACuentas={() => setView("cuentas")}
+      />
+    );
+  if (view === "cuentas")
+    return (
+      <BitacoraCuentasView
+        cuentas={cuentas}
+        trades={trades}
+        movimientos={movimientos}
+        accessToken={session.accessToken}
+        userId={session.userId}
+        onBack={() => setView("dashboard")}
         onChanged={load}
       />
     );
-  if (view === "calendario") return <BitacoraCalendario trades={trades} onBack={() => setView("menu")} />;
-  return null;
+
+  return (
+    <BitacoraDashboard
+      trades={trades}
+      cuentas={cuentas}
+      movimientos={movimientos}
+      onBack={onBack}
+      onIrOperaciones={() => setView("operaciones")}
+      onIrCuentas={() => setView("cuentas")}
+    />
+  );
 }
 
 function NovedadesSubView({ onBack, isAdmin }) {
@@ -5433,6 +5773,30 @@ export default function App() {
 
   const [session, setSession] = useState(null); // { accessToken, userId, profile }
   const [restoringSession, setRestoringSession] = useState(true);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const exitingRef = useRef(false);
+  const popHandlerRef = useRef(null);
+
+  React.useEffect(() => {
+    if (!session) return;
+    window.history.pushState({ appGuard: true }, "");
+    const handler = () => {
+      if (exitingRef.current) return;
+      window.history.pushState({ appGuard: true }, "");
+      setShowExitConfirm(true);
+    };
+    popHandlerRef.current = handler;
+    window.addEventListener("popstate", handler);
+    return () => window.removeEventListener("popstate", handler);
+  }, [session]);
+
+  const handleConfirmExit = () => {
+    exitingRef.current = true;
+    setShowExitConfirm(false);
+    if (popHandlerRef.current) window.removeEventListener("popstate", popHandlerRef.current);
+    window.history.go(-2);
+  };
+
   const [showPersonalDataPopup, setShowPersonalDataPopup] = useState(false);
   const [activeFlyers, setActiveFlyers] = useState([]);
   const [flyerDismissed, setFlyerDismissed] = useState(false);
@@ -5965,6 +6329,40 @@ export default function App() {
       {showAdminForm && (
         <AdminForm onClose={() => setShowAdminForm(false)} onCreated={loadSignals} />
       )}
+
+      {showExitConfirm && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-6"
+          style={{ backgroundColor: "rgba(0,0,0,0.65)" }}
+        >
+          <div
+            className="rounded-2xl p-5 w-full max-w-xs text-center"
+            style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
+          >
+            <div className="font-semibold text-[16px] mb-1" style={{ color: C.text }}>¿Salir de la app?</div>
+            <p className="text-sm mb-5" style={{ color: C.textDim }}>
+              Vas a cerrar Operación Trading.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowExitConfirm(false)}
+                className="flex-1 rounded-xl py-3 text-sm font-medium"
+                style={{ backgroundColor: C.cardAlt, color: C.text }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmExit}
+                className="flex-1 rounded-xl py-3 text-sm font-semibold"
+                style={{ backgroundColor: C.red, color: "#fff" }}
+              >
+                Salir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {editingSignal && (
         <AdminForm
           existingSignal={editingSignal}
