@@ -1597,6 +1597,12 @@ function AdminForm({ onClose, onCreated, existingSignal, onDeleted }) {
             <label
               className="mt-1 flex items-center justify-center gap-2 rounded-xl py-4 cursor-pointer"
               style={{ backgroundColor: C.cardAlt, border: `1px dashed ${C.border}` }}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                const f = e.dataTransfer.files?.[0];
+                if (f) setFile(f);
+              }}
             >
               <UploadCloud size={18} color={C.textDim} />
               <span className="text-sm" style={{ color: C.textDim }}>
@@ -2034,6 +2040,12 @@ function NodeForm({ seccion, parentId, onClose, onCreated }) {
               <label
                 className="mt-1 flex flex-col items-center justify-center rounded-xl h-32 cursor-pointer overflow-hidden"
                 style={{ backgroundColor: C.cardAlt, border: `1px dashed ${C.border}` }}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const f = e.dataTransfer.files?.[0];
+                  if (f) handleFile(f);
+                }}
               >
                 {preview || autoThumb ? (
                   <img src={preview || autoThumb} alt="" className="w-full h-full object-cover" />
@@ -2610,6 +2622,12 @@ function PaymentProofForm({ userId, onClose, onSent }) {
         <label
           className="flex items-center justify-center gap-2 rounded-xl py-6 cursor-pointer mb-4"
           style={{ backgroundColor: C.cardAlt, border: `1px dashed ${C.border}` }}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault();
+            const f = e.dataTransfer.files?.[0];
+            if (f) setFile(f);
+          }}
         >
           <UploadCloud size={18} color={C.textDim} />
           <span className="text-sm" style={{ color: C.textDim }}>
@@ -2973,6 +2991,12 @@ function FlyerAdminView({ onBack, accessToken }) {
           <label
             className="flex items-center justify-center gap-2 rounded-xl py-6 cursor-pointer mb-3"
             style={{ backgroundColor: C.cardAlt, border: `1px dashed ${C.border}` }}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              const f = e.dataTransfer.files?.[0];
+              if (f) setFile(f);
+            }}
           >
             <UploadCloud size={18} color={C.textDim} />
             <span className="text-sm" style={{ color: C.textDim }}>{file ? file.name : "Elegir imagen del flyer"}</span>
@@ -3239,10 +3263,19 @@ function RachaDiaria({ signals }) {
               <div className="flex flex-col items-center gap-1 min-h-[18px] justify-start">
                 {Array.from({ length: Math.max(5, resultados.length) }).map((_, j) => {
                   const r = resultados[j];
-                  if (!r) return <div key={j} className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: C.border }} />;
-                  if (r === "ganada") return <Check key={j} size={14} color={C.green} strokeWidth={3} />;
-                  if (r === "be") return <Dices key={j} size={14} color="#FFFFFF" strokeWidth={3} />;
-                  return <X key={j} size={14} color={C.red} strokeWidth={3} />;
+                  return (
+                    <div key={j} className="w-3.5 h-3.5 flex items-center justify-center">
+                      {!r ? (
+                        <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: C.border }} />
+                      ) : r === "ganada" ? (
+                        <Check size={14} color={C.green} strokeWidth={3} />
+                      ) : r === "be" ? (
+                        <Dices size={14} color="#FFFFFF" strokeWidth={3} />
+                      ) : (
+                        <X size={14} color={C.red} strokeWidth={3} />
+                      )}
+                    </div>
+                  );
                 })}
               </div>
             </div>
@@ -4122,6 +4155,22 @@ function ConfiguracionView({ onBack, themeName, onSetTheme, nombre, setNombre, a
   const [telefonoLocal, setTelefonoLocal] = useState(profile?.telefono || "");
   const [discordLocal, setDiscordLocal] = useState(profile?.discord_usuario || "");
   const [savingDatos, setSavingDatos] = useState(false);
+
+  const handleAvatarFile = async (f) => {
+    if (!f || !profile) return;
+    const previewUrl = URL.createObjectURL(f);
+    setAvatar(previewUrl);
+    setUploadingAvatar(true);
+    try {
+      const url = await uploadAvatar(f);
+      await updateProfile(profile.id, { avatar_url: url }, accessToken);
+      setAvatar(url);
+    } catch (err) {
+      setAvatarError("No se pudo guardar la foto, probá de nuevo");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
   const [datosSaved, setDatosSaved] = useState(false);
   const [datosError, setDatosError] = useState(null);
 
@@ -4155,7 +4204,15 @@ function ConfiguracionView({ onBack, themeName, onSetTheme, nombre, setNombre, a
       <ScreenHeader title="Configuración" onBack={onBack} />
 
       <div className="flex flex-col items-center mb-6">
-        <label className="relative cursor-pointer">
+        <label
+          className="relative cursor-pointer"
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault();
+            const f = e.dataTransfer.files?.[0];
+            if (f) handleAvatarFile(f);
+          }}
+        >
           <div
             className="w-24 h-24 rounded-full flex items-center justify-center overflow-hidden"
             style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.border}` }}
@@ -4170,22 +4227,7 @@ function ConfiguracionView({ onBack, themeName, onSetTheme, nombre, setNombre, a
             type="file"
             accept="image/*"
             className="hidden"
-            onChange={async (e) => {
-              const f = e.target.files?.[0];
-              if (!f || !profile) return;
-              const previewUrl = URL.createObjectURL(f);
-              setAvatar(previewUrl);
-              setUploadingAvatar(true);
-              try {
-                const url = await uploadAvatar(f);
-                await updateProfile(profile.id, { avatar_url: url }, accessToken);
-                setAvatar(url);
-              } catch (err) {
-                setAvatarError("No se pudo guardar la foto, probá de nuevo");
-              } finally {
-                setUploadingAvatar(false);
-              }
-            }}
+            onChange={(e) => handleAvatarFile(e.target.files?.[0])}
           />
           <div
             className="absolute bottom-0 right-0 w-7 h-7 rounded-full flex items-center justify-center"
@@ -4925,6 +4967,12 @@ function BitacoraTradeForm({ trade, accessToken, userId, cuentas, onClose, onSav
           <label
             className="mt-1 flex flex-col items-center justify-center rounded-xl h-32 cursor-pointer overflow-hidden"
             style={{ backgroundColor: C.cardAlt, border: `1px dashed ${C.border}` }}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              const f = e.dataTransfer.files?.[0];
+              if (f) handleFile(f);
+            }}
           >
             {preview ? (
               <img src={preview} alt="" className="w-full h-full object-cover" />
