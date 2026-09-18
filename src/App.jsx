@@ -4988,6 +4988,288 @@ function BitacoraTradeForm({ trade, accessToken, userId, cuentas, onClose, onSav
   );
 }
 
+function BitacoraOperaciones({ trades, cuentas, accessToken, userId, onBack, onChanged, onIrACuentas }) {
+  const [editing, setEditing] = useState(null); // null | "new" | trade object
+  const [viewingImage, setViewingImage] = useState(null);
+
+  const sinCuentas = cuentas.length === 0;
+
+  return (
+    <div className="max-w-md mx-auto">
+      <ScreenHeader title="Operaciones" onBack={onBack} />
+
+      {sinCuentas ? (
+        <div
+          className="rounded-2xl p-4 mb-4 text-center"
+          style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.border}` }}
+        >
+          <p className="text-sm mb-3" style={{ color: C.textDim }}>
+            Primero creá una cuenta para poder registrar operaciones.
+          </p>
+          <button
+            onClick={onIrACuentas}
+            className="rounded-xl px-4 py-2.5 text-sm font-semibold"
+            style={{ backgroundColor: C.green, color: "#08090B" }}
+          >
+            Crear cuenta
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={() => setEditing("new")}
+          className="w-full rounded-2xl py-3 mb-4 text-sm font-semibold"
+          style={{ backgroundColor: C.green, color: "#08090B" }}
+        >
+          + Registrar operación
+        </button>
+      )}
+
+      <div className="flex flex-col gap-2">
+        {trades.length === 0 && (
+          <p className="text-sm text-center py-10" style={{ color: C.textDim }}>Todavía no cargaste operaciones.</p>
+        )}
+        {trades.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setEditing(t)}
+            className="rounded-2xl px-4 py-3 flex items-center gap-3 text-left"
+            style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
+          >
+            {t.captura_url ? (
+              <img
+                src={t.captura_url}
+                alt=""
+                className="w-11 h-11 rounded-xl object-cover shrink-0"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setViewingImage(t.captura_url);
+                }}
+              />
+            ) : (
+              <div
+                className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
+                style={{ backgroundColor: C.cardAlt }}
+              >
+                {t.direccion === "venta" ? (
+                  <ArrowDownRight size={18} color={C.red} />
+                ) : (
+                  <ArrowUpRight size={18} color={C.green} />
+                )}
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="font-semibold text-[14px]" style={{ color: C.text }}>{t.simbolo}</div>
+              <div className="text-xs truncate" style={{ color: C.textDim }}>
+                {t.fecha} · {t.direccion === "venta" ? "Venta" : "Compra"}
+                {t.estrategia ? ` · ${t.estrategia}` : ""}
+                {t.estado === "abierta" ? " · Abierta" : ""}
+              </div>
+            </div>
+            {t.tipo_orden && (
+              <span
+                className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full shrink-0"
+                style={{
+                  backgroundColor: t.tipo_orden === "ganada" ? C.greenSoft : t.tipo_orden === "perdida" ? C.redSoft : C.cardAlt,
+                  color: t.tipo_orden === "ganada" ? C.green : t.tipo_orden === "perdida" ? C.red : C.textDim,
+                }}
+              >
+                {t.tipo_orden === "be" ? "BE" : t.tipo_orden === "ganada" ? "Ganada" : "Perdida"}
+              </span>
+            )}
+            <div className="font-bold text-[14px] shrink-0" style={{ color: Number(t.resultado) >= 0 ? C.green : C.red }}>
+              {Number(t.resultado) >= 0 ? "+" : ""}{Number(t.resultado).toFixed(2)}
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {editing && (
+        <BitacoraTradeForm
+          trade={editing === "new" ? null : editing}
+          accessToken={accessToken}
+          userId={userId}
+          cuentas={cuentas}
+          onClose={() => setEditing(null)}
+          onSaved={onChanged}
+        />
+      )}
+
+      {viewingImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-6"
+          style={{ backgroundColor: "rgba(0,0,0,0.85)" }}
+          onClick={() => setViewingImage(null)}
+        >
+          <button
+            onClick={() => setViewingImage(null)}
+            className="absolute top-5 right-5 w-9 h-9 rounded-full flex items-center justify-center"
+            style={{ backgroundColor: "rgba(255,255,255,0.12)" }}
+          >
+            <X size={18} color="#fff" />
+          </button>
+          <img src={viewingImage} alt="Captura ampliada" className="max-w-full max-h-full rounded-xl" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BitacoraCalendario({ trades, onBack, embedded = false }) {
+  const [cursor, setCursor] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
+  const [selectedDay, setSelectedDay] = useState(null);
+  const [viewingImage, setViewingImage] = useState(null);
+
+  const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+
+  const byDay = {};
+  trades.forEach((t) => {
+    if (!t.fecha) return;
+    if (!byDay[t.fecha]) byDay[t.fecha] = [];
+    byDay[t.fecha].push(t);
+  });
+
+  const year = cursor.getFullYear();
+  const month = cursor.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const startOffset = (firstDay.getDay() + 6) % 7; // lunes=0
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  const cells = [];
+  for (let i = 0; i < startOffset; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+  const ymd = (d) => `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+
+  const selectedTrades = selectedDay ? byDay[selectedDay] || [] : [];
+
+  return (
+    <div className="max-w-md mx-auto">
+      {!embedded && <ScreenHeader title="Calendario" onBack={onBack} />}
+
+      <div className="flex items-center justify-between mb-3">
+        <button
+          onClick={() => setCursor(new Date(year, month - 1, 1))}
+          className="w-8 h-8 rounded-full flex items-center justify-center"
+          style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.border}` }}
+        >
+          <ChevronLeft size={16} color={C.textDim} />
+        </button>
+        <span className="font-semibold text-[14px]" style={{ color: C.text }}>{MESES[month]} {year}</span>
+        <button
+          onClick={() => setCursor(new Date(year, month + 1, 1))}
+          className="w-8 h-8 rounded-full flex items-center justify-center"
+          style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.border}` }}
+        >
+          <ChevronRight size={16} color={C.textDim} />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-7 gap-1 mb-1">
+        {["L", "M", "X", "J", "V", "S", "D"].map((d, i) => (
+          <div key={i} className="text-center text-[10px] font-medium" style={{ color: C.textDim }}>{d}</div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-7 gap-1">
+        {cells.map((d, i) => {
+          if (d === null) return <div key={i} />;
+          const dayKey = ymd(d);
+          const dayTrades = byDay[dayKey] || [];
+          const total = dayTrades.reduce((acc, t) => acc + Number(t.resultado || 0), 0);
+          const hasTrades = dayTrades.length > 0;
+          const bg = !hasTrades ? "transparent" : total > 0 ? C.greenSoft : total < 0 ? C.redSoft : C.cardAlt;
+          const fg = !hasTrades ? C.textDim : total > 0 ? C.green : total < 0 ? C.red : C.textDim;
+          return (
+            <button
+              key={i}
+              onClick={() => hasTrades && setSelectedDay(dayKey)}
+              className="rounded-lg flex flex-col items-center justify-center py-1.5"
+              style={{ backgroundColor: bg, border: `1px solid ${hasTrades ? "transparent" : C.borderSoft}`, minHeight: 44 }}
+            >
+              <span className="text-[10px]" style={{ color: hasTrades ? fg : C.textDim }}>{d}</span>
+              {hasTrades && (
+                <span className="text-[8px] font-semibold" style={{ color: fg }}>
+                  {total >= 0 ? "+" : ""}{total.toFixed(0)}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {selectedDay && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center"
+          style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
+          onClick={() => setSelectedDay(null)}
+        >
+          <div
+            className="rounded-t-3xl w-full max-w-md p-6 max-h-[80vh] overflow-y-auto"
+            style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderBottom: "none" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-[15px] font-semibold" style={{ color: C.text }}>{selectedDay}</span>
+              <button onClick={() => setSelectedDay(null)}>
+                <X size={20} color={C.textDim} />
+              </button>
+            </div>
+            <div className="flex flex-col gap-2">
+              {selectedTrades.map((t) => (
+                <div
+                  key={t.id}
+                  className="rounded-2xl px-4 py-3 flex items-center gap-3"
+                  style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.border}` }}
+                >
+                  {t.captura_url ? (
+                    <img
+                      src={t.captura_url}
+                      alt=""
+                      className="w-12 h-12 rounded-xl object-cover shrink-0 cursor-pointer"
+                      onClick={() => setViewingImage(t.captura_url)}
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: C.card }}>
+                      {t.direccion === "venta" ? <ArrowDownRight size={18} color={C.red} /> : <ArrowUpRight size={18} color={C.green} />}
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-[14px]" style={{ color: C.text }}>{t.simbolo}</div>
+                    {t.notas && <div className="text-xs truncate" style={{ color: C.textDim }}>{t.notas}</div>}
+                  </div>
+                  <div className="font-bold text-[14px] shrink-0" style={{ color: Number(t.resultado) >= 0 ? C.green : C.red }}>
+                    {Number(t.resultado) >= 0 ? "+" : ""}{Number(t.resultado).toFixed(2)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewingImage && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center p-6"
+          style={{ backgroundColor: "rgba(0,0,0,0.85)" }}
+          onClick={() => setViewingImage(null)}
+        >
+          <button
+            onClick={() => setViewingImage(null)}
+            className="absolute top-5 right-5 w-9 h-9 rounded-full flex items-center justify-center"
+            style={{ backgroundColor: "rgba(255,255,255,0.12)" }}
+          >
+            <X size={18} color="#fff" />
+          </button>
+          <img src={viewingImage} alt="Captura ampliada" className="max-w-full max-h-full rounded-xl" />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function BitacoraMenu({ onSelect, onBack }) {
   const items = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
