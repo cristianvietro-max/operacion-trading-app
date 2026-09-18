@@ -6197,6 +6197,10 @@ export default function App() {
   const [themeName, setThemeName] = useState("dark");
   applyTheme(themeName);
 
+  React.useEffect(() => {
+    document.title = "Trader App";
+  }, []);
+
   const [session, setSession] = useState(null); // { accessToken, userId, profile }
   const [restoringSession, setRestoringSession] = useState(true);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
