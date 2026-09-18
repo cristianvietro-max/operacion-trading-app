@@ -3220,6 +3220,14 @@ function RachaDiaria({ signals }) {
       .map((s) => s.estado);
   };
 
+  const todosLosResultados = signals
+    .filter((s) => s.estado === "ganada" || s.estado === "perdida")
+    .map((s) => s.estado);
+  const ganadasCount = todosLosResultados.filter((r) => r === "ganada").length;
+  const perdidasCount = todosLosResultados.filter((r) => r === "perdida").length;
+  const decisivas = ganadasCount + perdidasCount;
+  const porcentajeAcierto = decisivas > 0 ? Math.round((ganadasCount / decisivas) * 100) : null;
+
   return (
     <div className="rounded-2xl px-4 py-4 mb-4" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
       <div className="flex items-center justify-between mb-3">
@@ -3231,8 +3239,21 @@ function RachaDiaria({ signals }) {
           <ChevronLeft size={14} color={C.textDim} />
         </button>
         <div className="text-center">
-          <div className="text-[11px] tracking-widest font-semibold" style={{ color: C.textDim }}>
-            RESUMEN DE TRADES
+          <div className="flex items-center justify-center gap-2">
+            <span className="text-[11px] tracking-widest font-semibold" style={{ color: C.textDim }}>
+              RESUMEN DE TRADES
+            </span>
+            {porcentajeAcierto !== null && (
+              <span
+                className="text-[11px] font-bold px-1.5 py-0.5 rounded-full"
+                style={{
+                  color: porcentajeAcierto >= 50 ? C.green : C.red,
+                  backgroundColor: porcentajeAcierto >= 50 ? C.greenSoft : C.redSoft,
+                }}
+              >
+                {porcentajeAcierto}%
+              </span>
+            )}
           </div>
           <div className="text-[10px] mt-0.5" style={{ color: C.textDim }}>{rangoLabel}</div>
         </div>
