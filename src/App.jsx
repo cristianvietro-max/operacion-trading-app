@@ -6052,24 +6052,24 @@ function BitacoraDashboard({ trades, cuentas, movimientos, accessToken, userId, 
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3 mb-3">
-        <div className="rounded-2xl px-4 py-4" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
-          <div className="text-[11px] tracking-wide font-medium mb-1" style={{ color: C.textDim }}>BALANCE</div>
-          <div className="text-xl font-bold" style={{ color: balanceTotal >= 0 ? C.green : C.red }}>
+      <div className="grid grid-cols-4 gap-2 mb-3">
+        <div className="rounded-2xl px-2 py-3 text-center" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
+          <div className="text-[9px] tracking-wide font-medium mb-1" style={{ color: C.textDim }}>BALANCE</div>
+          <div className="text-[13px] font-bold leading-tight" style={{ color: balanceTotal >= 0 ? C.green : C.red }}>
             {balanceTotal >= 0 ? "+" : ""}{formatMoneyAR(balanceTotal)}
           </div>
         </div>
-        <div className="rounded-2xl px-4 py-4" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
-          <div className="text-[11px] tracking-wide font-medium mb-1" style={{ color: C.textDim }}>WIN RATE</div>
-          <div className="text-xl font-bold" style={{ color: C.text }}>{winRate}%</div>
+        <div className="rounded-2xl px-2 py-3 text-center" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
+          <div className="text-[9px] tracking-wide font-medium mb-1" style={{ color: C.textDim }}>WIN RATE</div>
+          <div className="text-[13px] font-bold leading-tight" style={{ color: C.text }}>{winRate}%</div>
         </div>
-        <div className="rounded-2xl px-4 py-4" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
-          <div className="text-[11px] tracking-wide font-medium mb-1" style={{ color: C.textDim }}>OPERACIONES</div>
-          <div className="text-xl font-bold" style={{ color: C.text }}>{tradesFiltrados.length}</div>
+        <div className="rounded-2xl px-2 py-3 text-center" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
+          <div className="text-[9px] tracking-wide font-medium mb-1" style={{ color: C.textDim }}>OPERAC.</div>
+          <div className="text-[13px] font-bold leading-tight" style={{ color: C.text }}>{tradesFiltrados.length}</div>
         </div>
-        <div className="rounded-2xl px-4 py-4" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
-          <div className="text-[11px] tracking-wide font-medium mb-1" style={{ color: C.textDim }}>G / P</div>
-          <div className="text-xl font-bold" style={{ color: C.text }}>
+        <div className="rounded-2xl px-2 py-3 text-center" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
+          <div className="text-[9px] tracking-wide font-medium mb-1" style={{ color: C.textDim }}>G / P</div>
+          <div className="text-[13px] font-bold leading-tight" style={{ color: C.text }}>
             <span style={{ color: C.green }}>{ganadas}</span> / <span style={{ color: C.red }}>{perdidas}</span>
           </div>
         </div>
