@@ -468,6 +468,15 @@ async function fetchNodes(seccion, parentId) {
   return res.json();
 }
 
+async function fetchFoldersInSeccion(seccion) {
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/botones?seccion=eq.${seccion}&tipo=eq.carpeta&select=id,titulo,parent_id`,
+    { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
+  );
+  if (!res.ok) throw new Error("No se pudieron cargar las carpetas");
+  return res.json();
+}
+
 async function createNode(payload) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/botones`, {
     method: "POST",
@@ -1968,10 +1977,54 @@ function NodeForm({ seccion, parentId, editingNode, onClose, onCreated }) {
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(editingNode?.miniatura_url || null);
   const [nivelRequerido, setNivelRequerido] = useState(editingNode?.nivel_requerido || "");
+  const [nuevaUbicacion, setNuevaUbicacion] = useState(editingNode?.parent_id ?? "raiz");
+  const [carpetas, setCarpetas] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
   const inputStyle = { backgroundColor: C.cardAlt, color: C.text, border: `1px solid ${C.border}` };
+
+  React.useEffect(() => {
+    if (isEdit) {
+      fetchFoldersInSeccion(seccion).then(setCarpetas).catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Arma "Estrategias / Scalping" caminando hacia arriba por parent_id, y excluye
+  // la carpeta que estamos editando y cualquier carpeta que esté adentro de ella
+  // (para no poder moverla dentro de sí misma).
+  const opcionesUbicacion = React.useMemo(() => {
+    if (!isEdit) return [];
+    const byId = Object.fromEntries(carpetas.map((c) => [c.id, c]));
+    const esDescendienteOSiMismo = (id) => {
+      let cursor = id;
+      let guard = 0;
+      while (cursor != null && guard < 50) {
+        if (cursor === editingNode.id) return true;
+        cursor = byId[cursor]?.parent_id ?? null;
+        guard++;
+      }
+      return false;
+    };
+    const pathDe = (c) => {
+      const partes = [c.titulo];
+      let cursor = c.parent_id;
+      let guard = 0;
+      while (cursor != null && guard < 50) {
+        const padre = byId[cursor];
+        if (!padre) break;
+        partes.unshift(padre.titulo);
+        cursor = padre.parent_id;
+        guard++;
+      }
+      return partes.join(" / ");
+    };
+    return carpetas
+      .filter((c) => (editingNode.tipo === "carpeta" ? !esDescendienteOSiMismo(c.id) : true))
+      .map((c) => ({ id: c.id, label: pathDe(c) }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [carpetas, isEdit, editingNode]);
 
   const handleFile = (f) => {
     setFile(f);
@@ -1994,6 +2047,7 @@ function NodeForm({ seccion, parentId, editingNode, onClose, onCreated }) {
           url: step === "carpeta" ? null : url.trim(),
           miniatura_url: miniaturaUrl,
           nivel_requerido: nivelRequerido || null,
+          parent_id: nuevaUbicacion === "raiz" ? null : nuevaUbicacion,
         });
       } else {
         await createNode({
@@ -2155,6 +2209,28 @@ function NodeForm({ seccion, parentId, editingNode, onClose, onCreated }) {
                 </p>
               )}
             </div>
+
+            {isEdit && (
+              <div className="mb-4">
+                <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>
+                  UBICACIÓN
+                </label>
+                <select
+                  value={nuevaUbicacion}
+                  onChange={(e) => setNuevaUbicacion(e.target.value)}
+                  className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
+                  style={inputStyle}
+                >
+                  <option value="raiz">Raíz (nivel principal)</option>
+                  {opcionesUbicacion.map((o) => (
+                    <option key={o.id} value={o.id}>{o.label}</option>
+                  ))}
+                </select>
+                <p className="text-[11px] mt-1" style={{ color: C.textDim }}>
+                  Elegí a qué carpeta pertenece — así podés mover algo que ya creaste adentro de otra carpeta.
+                </p>
+              </div>
+            )}
 
             <div className="mb-4">
               <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>
