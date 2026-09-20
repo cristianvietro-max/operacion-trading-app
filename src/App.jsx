@@ -3196,7 +3196,7 @@ const PLANES_PRO = [
     id: "esencial",
     label: "ESENCIAL",
     subtitulo: "Para quien está comenzando",
-    periodo: "1 mes",
+    periodo: "1 MES",
     meses: 1,
     precio: 17,
     diario: "0.57",
@@ -3207,7 +3207,7 @@ const PLANES_PRO = [
     id: "trader",
     label: "TRADER",
     subtitulo: "Para quien quiere empezar a operar con un sistema",
-    periodo: "3 meses",
+    periodo: "3 MESES",
     meses: 3,
     precio: 47,
     diario: "0.52",
@@ -3221,7 +3221,7 @@ const PLANES_PRO = [
     id: "pro",
     label: "PRO",
     subtitulo: "Para quien busca automatización y mayor profundidad",
-    periodo: "6 meses",
+    periodo: "6 MESES",
     meses: 6,
     precio: 77,
     diario: "0.43",
@@ -3237,7 +3237,7 @@ const PLANES_PRO = [
     id: "full",
     label: "FULL ACCESS",
     subtitulo: "La experiencia completa de Operación Trading",
-    periodo: "12 meses",
+    periodo: "12 MESES",
     meses: 12,
     precio: 147,
     diario: "0.40",
@@ -3342,7 +3342,7 @@ function PlanesProView({ onBack }) {
                 <span className="text-xs ml-1" style={{ color: C.textDim }}>USD/USDT</span>
               </div>
               <div className="text-right">
-                <div className="font-semibold text-[15px]" style={{ color: C.text }}>{p.periodo}</div>
+                <div className="font-semibold text-[15px]" style={{ color: C.text }}>Vigencia: {p.periodo}</div>
                 <div className="text-xs" style={{ color: C.textDim }}>${p.diario} USD/USDT por día</div>
               </div>
             </div>
