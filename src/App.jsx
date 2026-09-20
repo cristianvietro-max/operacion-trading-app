@@ -5246,31 +5246,28 @@ function BitacoraOperaciones({ trades, cuentas, accessToken, userId, onBack, onC
     <div className="max-w-md mx-auto">
       <ScreenHeader title="Operaciones" onBack={onBack} />
 
-      {sinCuentas ? (
-        <div
-          className="rounded-2xl p-4 mb-4 text-center"
-          style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.border}` }}
+      {sinCuentas && (
+        <p className="text-xs mb-3 text-center" style={{ color: C.textDim }}>
+          Todavía no tenés cuentas — creá una para poder registrar operaciones.
+        </p>
+      )}
+
+      <div className="flex gap-2 mb-4">
+        <button
+          onClick={onIrACuentas}
+          className="rounded-2xl py-3 px-4 text-sm font-semibold shrink-0"
+          style={{ backgroundColor: "#F0B429", color: "#08090B" }}
         >
-          <p className="text-sm mb-3" style={{ color: C.textDim }}>
-            Primero creá una cuenta para poder registrar operaciones.
-          </p>
-          <button
-            onClick={onIrACuentas}
-            className="rounded-xl px-4 py-2.5 text-sm font-semibold"
-            style={{ backgroundColor: C.green, color: "#08090B" }}
-          >
-            Crear cuenta
-          </button>
-        </div>
-      ) : (
+          Cuentas
+        </button>
         <button
           onClick={() => setEditing("new")}
-          className="w-full rounded-2xl py-3 mb-4 text-sm font-semibold"
+          className="flex-1 rounded-2xl py-3 text-sm font-semibold"
           style={{ backgroundColor: C.green, color: "#08090B" }}
         >
           + Registrar operación
         </button>
-      )}
+      </div>
 
       <div className="flex flex-col gap-2">
         {trades.length === 0 && (
