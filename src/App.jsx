@@ -483,6 +483,21 @@ async function createNode(payload) {
   return res.json();
 }
 
+async function updateNode(id, payload) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/botones?id=eq.${id}`, {
+    method: "PATCH",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      "Content-Type": "application/json",
+      Prefer: "return=representation",
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error("No se pudo actualizar");
+  return res.json();
+}
+
 async function deleteNode(id) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/botones?id=eq.${id}`, {
     method: "DELETE",
@@ -792,6 +807,29 @@ function daysUntilVencimiento(profile) {
   today.setHours(0, 0, 0, 0);
   const venc = new Date(profile.fecha_vencimiento + "T00:00:00");
   return Math.round((venc - today) / (1000 * 60 * 60 * 24));
+}
+
+const NIVELES_CONTENIDO = [
+  { value: "prueba", label: "Usuario Prueba", rank: 0 },
+  { value: "esencial", label: "Esencial", rank: 1 },
+  { value: "trader", label: "Trader", rank: 2 },
+  { value: "pro", label: "Pro", rank: 3 },
+  { value: "full", label: "Full Access", rank: 4 },
+];
+
+function rankNivel(value) {
+  const found = NIVELES_CONTENIDO.find((n) => n.value === value);
+  return found ? found.rank : 0;
+}
+
+function labelNivel(value) {
+  const found = NIVELES_CONTENIDO.find((n) => n.value === value);
+  return found ? found.label : "Usuario Prueba";
+}
+
+function nivelEfectivoUsuario(profile) {
+  if (profile?.es_admin) return 99;
+  return rankNivel(profile?.nivel_contenido || "prueba");
 }
 
 async function updateSignal(id, payload) {
@@ -1922,12 +1960,14 @@ function NovedadForm({ onClose, onCreated }) {
   );
 }
 
-function NodeForm({ seccion, parentId, onClose, onCreated }) {
-  const [step, setStep] = useState("tipo"); // "tipo" | "link" | "carpeta"
-  const [titulo, setTitulo] = useState("");
-  const [url, setUrl] = useState("");
+function NodeForm({ seccion, parentId, editingNode, onClose, onCreated }) {
+  const isEdit = !!editingNode;
+  const [step, setStep] = useState(isEdit ? (editingNode.tipo === "carpeta" ? "carpeta" : "link") : "tipo");
+  const [titulo, setTitulo] = useState(editingNode?.titulo || "");
+  const [url, setUrl] = useState(editingNode?.url || "");
   const [file, setFile] = useState(null);
-  const [preview, setPreview] = useState(null);
+  const [preview, setPreview] = useState(editingNode?.miniatura_url || null);
+  const [nivelRequerido, setNivelRequerido] = useState(editingNode?.nivel_requerido || "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
@@ -1944,18 +1984,28 @@ function NodeForm({ seccion, parentId, onClose, onCreated }) {
     setSubmitting(true);
     setError(null);
     try {
-      let miniaturaUrl = null;
+      let miniaturaUrl = editingNode?.miniatura_url || null;
       if (file) {
         miniaturaUrl = await uploadNodeImage(file);
       }
-      await createNode({
-        seccion,
-        parent_id: parentId,
-        tipo: step === "carpeta" ? "carpeta" : "link",
-        titulo: titulo.trim(),
-        url: step === "carpeta" ? null : url.trim(),
-        miniatura_url: miniaturaUrl,
-      });
+      if (isEdit) {
+        await updateNode(editingNode.id, {
+          titulo: titulo.trim(),
+          url: step === "carpeta" ? null : url.trim(),
+          miniatura_url: miniaturaUrl,
+          nivel_requerido: nivelRequerido || null,
+        });
+      } else {
+        await createNode({
+          seccion,
+          parent_id: parentId,
+          tipo: step === "carpeta" ? "carpeta" : "link",
+          titulo: titulo.trim(),
+          url: step === "carpeta" ? null : url.trim(),
+          miniatura_url: miniaturaUrl,
+          nivel_requerido: nivelRequerido || null,
+        });
+      }
       onCreated();
       onClose();
     } catch (err) {
@@ -1978,7 +2028,11 @@ function NodeForm({ seccion, parentId, onClose, onCreated }) {
       >
         <div className="flex items-center justify-between mb-4">
           <span className="text-[15px] font-semibold" style={{ color: C.text }}>
-            {step === "tipo" ? "¿Qué querés agregar?" : step === "carpeta" ? "Nueva carpeta" : "Nuevo enlace"}
+            {step === "tipo"
+              ? "¿Qué querés agregar?"
+              : isEdit
+              ? step === "carpeta" ? "Editar carpeta" : "Editar enlace"
+              : step === "carpeta" ? "Nueva carpeta" : "Nuevo enlace"}
           </span>
           <button onClick={onClose}>
             <X size={20} color={C.textDim} />
@@ -2102,6 +2156,26 @@ function NodeForm({ seccion, parentId, onClose, onCreated }) {
               )}
             </div>
 
+            <div className="mb-4">
+              <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>
+                NIVEL REQUERIDO
+              </label>
+              <select
+                value={nivelRequerido}
+                onChange={(e) => setNivelRequerido(e.target.value)}
+                className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
+                style={inputStyle}
+              >
+                <option value="">Hereda del padre</option>
+                {NIVELES_CONTENIDO.map((n) => (
+                  <option key={n.value} value={n.value}>{n.label}</option>
+                ))}
+              </select>
+              <p className="text-[11px] mt-1" style={{ color: C.textDim }}>
+                Si no elegís nada, usa el mismo nivel que la carpeta que lo contiene (o queda libre si nada en la cadena tiene nivel puesto).
+              </p>
+            </div>
+
             {error && <p className="text-sm text-center mb-3" style={{ color: C.red }}>{error}</p>}
 
             <button
@@ -2114,7 +2188,11 @@ function NodeForm({ seccion, parentId, onClose, onCreated }) {
                 color: titulo.trim() && (step === "carpeta" || url.trim()) && !submitting ? "#08090B" : C.textDim,
               }}
             >
-              {submitting ? "Guardando..." : step === "carpeta" ? "Crear carpeta" : "Publicar enlace"}
+              {submitting
+                ? "Guardando..."
+                : isEdit
+                ? "Guardar cambios"
+                : step === "carpeta" ? "Crear carpeta" : "Publicar enlace"}
             </button>
           </>
         )}
@@ -2581,9 +2659,9 @@ function LoginView({ onLogin, onSignup }) {
   );
 }
 
-function PaymentProofForm({ userId, onClose, onSent }) {
+function PaymentProofForm({ userId, initialMeses, onClose, onSent }) {
   const [file, setFile] = useState(null);
-  const [planMeses, setPlanMeses] = useState(null);
+  const [planMeses, setPlanMeses] = useState(initialMeses || null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
@@ -3289,8 +3367,9 @@ function PlanFicha({ plan }) {
   );
 }
 
-function PlanesProView({ onBack }) {
+function PlanesProView({ onBack, userId, accessToken }) {
   const [selected, setSelected] = useState(null);
+  const [showProof, setShowProof] = useState(false);
   return (
     <div className="max-w-md mx-auto">
       <div className="flex items-center gap-1.5 mb-4">
@@ -3354,11 +3433,29 @@ function PlanesProView({ onBack }) {
       </div>
       {selected && (
         <div className="rounded-2xl p-5 text-center" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
-          <p className="text-sm" style={{ color: C.textDim }}>
-            Elegiste {PLANES_PRO.find((p) => p.id === selected)?.label} (${PLANES_PRO.find((p) => p.id === selected)?.precio} USD/USDT).
-            El pago todavía no está conectado — un admin te va a contactar para coordinarlo, o vas a poder subir tu comprobante de pago apenas esté listo.
+          <p className="text-sm mb-4" style={{ color: C.textDim }}>
+            Elegiste <b style={{ color: C.text }}>{PLANES_PRO.find((p) => p.id === selected)?.label}</b> (${PLANES_PRO.find((p) => p.id === selected)?.precio} USD/USDT).
+            El siguiente paso es subir el comprobante de la transferencia — un admin lo revisa y te habilita el acceso.
           </p>
+          <button
+            onClick={() => setShowProof(true)}
+            className="w-full rounded-2xl py-3.5 text-sm font-semibold"
+            style={{ backgroundColor: C.green, color: "#08090B" }}
+          >
+            Ya pagué, subir comprobante
+          </button>
         </div>
+      )}
+      {showProof && (
+        <PaymentProofForm
+          userId={userId}
+          initialMeses={PLANES_PRO.find((p) => p.id === selected)?.meses}
+          onClose={() => setShowProof(false)}
+          onSent={() => {
+            setShowProof(false);
+            onBack();
+          }}
+        />
       )}
     </div>
   );
@@ -3874,6 +3971,7 @@ function UserEditForm({ user, onClose, onSaved, accessToken }) {
   const [pago, setPago] = useState(!!user.pago);
   const [alumno, setAlumno] = useState(!!user.alumno_comunidad);
   const [esAdmin, setEsAdmin] = useState(!!user.es_admin);
+  const [nivelContenido, setNivelContenido] = useState(user.nivel_contenido || "prueba");
   const [aprobado, setAprobado] = useState(user.aprobado !== false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -3899,6 +3997,7 @@ function UserEditForm({ user, onClose, onSaved, accessToken }) {
           pago,
           alumno_comunidad: alumno,
           es_admin: esAdmin,
+          nivel_contenido: nivelContenido,
           aprobado,
         },
         accessToken
@@ -3968,6 +4067,33 @@ function UserEditForm({ user, onClose, onSaved, accessToken }) {
         <p className="text-[10px] mb-3" style={{ color: C.textDim }}>
           El vencimiento se calcula solo (renovación + 3 meses) — podés ajustarlo a mano si hace falta.
         </p>
+
+        <div className="mb-3">
+          <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>
+            NIVEL DE CONTENIDO
+          </label>
+          <select
+            value={nivelContenido}
+            onChange={(e) => setNivelContenido(e.target.value)}
+            disabled={esAdmin}
+            className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
+            style={{ ...inputStyle, opacity: esAdmin ? 0.4 : 1 }}
+          >
+            {NIVELES_CONTENIDO.map((n) => (
+              <option key={n.value} value={n.value}>{n.label}</option>
+            ))}
+          </select>
+          {esAdmin && (
+            <p className="text-[10px] mt-1" style={{ color: C.textDim }}>
+              No aplica: es admin, ya tiene acceso a todo.
+            </p>
+          )}
+          {vitalicio && !esAdmin && (
+            <p className="text-[10px] mt-1" style={{ color: C.textDim }}>
+              Vitalicio solo significa que no vence — igual elegí qué nivel de contenido tiene.
+            </p>
+          )}
+        </div>
 
         {[
           { label: "Vitalicio", value: vitalicio, set: setVitalicio },
@@ -4074,6 +4200,7 @@ function UsuariosView({ onBack, accessToken, onApproved }) {
     try {
       const hoy = new Date().toISOString().slice(0, 10);
       const meses = c.plan_meses || 3;
+      const nivelPlan = PLANES_PRO.find((p) => p.meses === meses)?.id || "esencial";
       const owner = users.find((u) => u.id === c.usuario_id);
       // Si todavía le quedaban días de vigencia (prueba u otra membresía), se los respetamos
       // sumando la nueva suscripción a partir de esa fecha, no desde hoy.
@@ -4084,7 +4211,7 @@ function UsuariosView({ onBack, accessToken, onApproved }) {
       await updateComprobante(c.id, { estado: "aprobado" }, accessToken);
       await updateProfile(
         c.usuario_id,
-        { pago: true, fecha_renovacion: hoy, fecha_vencimiento: addMonths(baseFecha, meses) },
+        { pago: true, fecha_renovacion: hoy, fecha_vencimiento: addMonths(baseFecha, meses), nivel_contenido: nivelPlan },
         accessToken
       );
       load();
@@ -4688,12 +4815,13 @@ function HistorialComprobantesModal({ userId, accessToken, onClose }) {
   );
 }
 
-function NodeExplorer({ seccion, rootTitle, isAdmin, onBack, layout = "grid", fixedRootItems = [] }) {
-  const [path, setPath] = useState([{ id: null, titulo: rootTitle }]);
+function NodeExplorer({ seccion, rootTitle, isAdmin, onBack, layout = "grid", fixedRootItems = [], nivelUsuario = 99 }) {
+  const [path, setPath] = useState([{ id: null, titulo: rootTitle, nivelReq: null }]);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
+  const [editingNode, setEditingNode] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
 
   const current = path[path.length - 1];
@@ -4727,9 +4855,20 @@ function NodeExplorer({ seccion, rootTitle, isAdmin, onBack, layout = "grid", fi
     }
   };
 
+  const nivelEfectivoDe = (node) => node.nivel_requerido || current.nivelReq || null;
+  const estaBloqueado = (node) => {
+    if (isAdmin) return false;
+    const req = nivelEfectivoDe(node);
+    return req ? nivelUsuario < rankNivel(req) : false;
+  };
+
   const handleOpen = (node) => {
+    if (estaBloqueado(node)) {
+      alert(`Necesitás el nivel "${labelNivel(nivelEfectivoDe(node))}" o superior para acceder a esto.`);
+      return;
+    }
     if (node.tipo === "carpeta") {
-      setPath([...path, { id: node.id, titulo: node.titulo }]);
+      setPath([...path, { id: node.id, titulo: node.titulo, nivelReq: nivelEfectivoDe(node) }]);
     } else {
       window.open(node.url, "_blank", "noopener,noreferrer");
     }
@@ -4809,6 +4948,8 @@ function NodeExplorer({ seccion, rootTitle, isAdmin, onBack, layout = "grid", fi
           const isFolder = node.tipo === "carpeta";
           const thumb = node.miniatura_url || (!isFolder ? youtubeThumbFromUrl(node.url) : null);
           const TypeIcon = isFolder ? Folder : RESOURCE_TYPE_ICON[detectResourceType(node.url)];
+          const bloqueado = estaBloqueado(node);
+          const reqLabel = labelNivel(nivelEfectivoDe(node));
           return (
             <div
               key={node.id}
@@ -4817,18 +4958,26 @@ function NodeExplorer({ seccion, rootTitle, isAdmin, onBack, layout = "grid", fi
             >
               <button onClick={() => handleOpen(node)} className="w-full text-left block">
                 <div
-                  className={isGrid ? "h-28 flex items-center justify-center overflow-hidden" : "h-24 flex items-center justify-center overflow-hidden"}
+                  className={isGrid ? "h-28 flex items-center justify-center overflow-hidden relative" : "h-24 flex items-center justify-center overflow-hidden relative"}
                   style={{ backgroundColor: C.cardAlt, borderBottom: `1px solid ${C.borderSoft}` }}
                 >
                   {thumb ? (
-                    <img src={thumb} alt="" className="w-full h-full object-cover" />
+                    <img src={thumb} alt="" className="w-full h-full object-cover" style={{ filter: bloqueado ? "grayscale(1) brightness(0.5)" : "none" }} />
                   ) : (
-                    <TypeIcon size={isGrid ? 26 : 30} color={C.green} />
+                    <TypeIcon size={isGrid ? 26 : 30} color={bloqueado ? C.textDim : C.green} />
+                  )}
+                  {bloqueado && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-1" style={{ backgroundColor: "rgba(0,0,0,0.45)" }}>
+                      <Lock size={20} color="#fff" />
+                      <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: "#F0B429", color: "#08090B" }}>
+                        {reqLabel}
+                      </span>
+                    </div>
                   )}
                 </div>
                 <div className={isGrid ? "px-3 py-2.5 flex items-center justify-between gap-1" : "px-4 py-3 flex items-center justify-between"}>
-                  <div className={isGrid ? "font-medium text-[12px] leading-tight" : "font-semibold text-[14px]"} style={{ color: C.text }}>{node.titulo}</div>
-                  {!isGrid && (isFolder ? <ChevronRight size={16} color={C.textDim} className="shrink-0 ml-2" /> : <ExternalLink size={16} color={C.textDim} className="shrink-0 ml-2" />)}
+                  <div className={isGrid ? "font-medium text-[12px] leading-tight" : "font-semibold text-[14px]"} style={{ color: bloqueado ? C.textDim : C.text }}>{node.titulo}</div>
+                  {!isGrid && (bloqueado ? <Lock size={15} color={C.textDim} className="shrink-0 ml-2" /> : isFolder ? <ChevronRight size={16} color={C.textDim} className="shrink-0 ml-2" /> : <ExternalLink size={16} color={C.textDim} className="shrink-0 ml-2" />)}
                 </div>
               </button>
               {isAdmin && (
@@ -4861,6 +5010,15 @@ function NodeExplorer({ seccion, rootTitle, isAdmin, onBack, layout = "grid", fi
                   <X size={14} color="#fff" />
                 </button>
               )}
+              {isAdmin && (
+                <button
+                  onClick={() => setEditingNode(node)}
+                  className="absolute bottom-2 right-2 w-7 h-7 rounded-full flex items-center justify-center"
+                  style={{ backgroundColor: "rgba(0,0,0,0.55)" }}
+                >
+                  <Pencil size={13} color="#fff" />
+                </button>
+              )}
             </div>
           );
         })}
@@ -4879,16 +5037,25 @@ function NodeExplorer({ seccion, rootTitle, isAdmin, onBack, layout = "grid", fi
           onCreated={load}
         />
       )}
+      {editingNode && (
+        <NodeForm
+          seccion={seccion}
+          parentId={current.id}
+          editingNode={editingNode}
+          onClose={() => setEditingNode(null)}
+          onCreated={load}
+        />
+      )}
     </div>
   );
 }
 
-function ClasesGrabadasView({ onBack, isAdmin }) {
-  return <NodeExplorer seccion="tutoriales" rootTitle="Tutoriales" isAdmin={isAdmin} onBack={onBack} layout="grid" />;
+function ClasesGrabadasView({ onBack, isAdmin, nivelUsuario }) {
+  return <NodeExplorer seccion="tutoriales" rootTitle="Tutoriales" isAdmin={isAdmin} onBack={onBack} layout="grid" nivelUsuario={nivelUsuario} />;
 }
 
-function BrokerView({ onBack, isAdmin }) {
-  return <NodeExplorer seccion="broker" rootTitle="Broker" isAdmin={isAdmin} onBack={onBack} layout="grid" />;
+function BrokerView({ onBack, isAdmin, nivelUsuario }) {
+  return <NodeExplorer seccion="broker" rootTitle="Broker" isAdmin={isAdmin} onBack={onBack} layout="grid" nivelUsuario={nivelUsuario} />;
 }
 
 function BonosView({ onBack }) {
@@ -6713,11 +6880,11 @@ export default function App() {
           )}
 
           {tab === "broker" && (
-            <BrokerView onBack={goHome} isAdmin={isAdmin} />
+            <BrokerView onBack={goHome} isAdmin={isAdmin} nivelUsuario={nivelEfectivoUsuario(session.profile)} />
           )}
 
           {tab === "herramientas" && (
-            <NodeExplorer seccion="herramientas" rootTitle="Herramientas" isAdmin={isAdmin} onBack={goHome} layout="grid" />
+            <NodeExplorer seccion="herramientas" rootTitle="Herramientas" isAdmin={isAdmin} onBack={goHome} layout="grid" nivelUsuario={nivelEfectivoUsuario(session.profile)} />
           )}
 
           {tab === "automatizaciones" && (
@@ -6727,6 +6894,7 @@ export default function App() {
               isAdmin={isAdmin}
               onBack={goHome}
               layout="grid"
+              nivelUsuario={nivelEfectivoUsuario(session.profile)}
             />
           )}
 
@@ -6785,7 +6953,7 @@ export default function App() {
           )}
 
           {tab === "mas" && masSection === "formacion" && (
-            <ClasesGrabadasView onBack={goHome} isAdmin={isAdmin} />
+            <ClasesGrabadasView onBack={goHome} isAdmin={isAdmin} nivelUsuario={nivelEfectivoUsuario(session.profile)} />
           )}
 
           {tab === "mas" && masSection === "comunidad" && comunidadView === null && (
@@ -6795,6 +6963,7 @@ export default function App() {
               isAdmin={isAdmin}
               onBack={goHome}
               layout="grid"
+              nivelUsuario={nivelEfectivoUsuario(session.profile)}
               fixedRootItems={[
                 { titulo: "Discord y traders", icon: MessageCircle, onClick: () => setComunidadView("discord") },
                 { titulo: "Noticias internas", icon: Bell, onClick: () => setComunidadView("noticias-internas") },
@@ -6809,7 +6978,7 @@ export default function App() {
           )}
 
           {tab === "mas" && masSection === "tienda" && (
-            <NodeExplorer seccion="tienda" rootTitle="Tienda" isAdmin={isAdmin} onBack={goHome} layout="grid" />
+            <NodeExplorer seccion="tienda" rootTitle="Tienda" isAdmin={isAdmin} onBack={goHome} layout="grid" nivelUsuario={nivelEfectivoUsuario(session.profile)} />
           )}
 
           {tab === "mas" && masSection === "calendario-mas" && (
@@ -6895,7 +7064,13 @@ export default function App() {
               onApproved={() => refreshPendingCount(session.accessToken)}
             />
           )}
-          {specialView === "planes" && <PlanesProView onBack={() => setSpecialView(null)} />}
+          {specialView === "planes" && (
+            <PlanesProView
+              onBack={() => setSpecialView(null)}
+              userId={session.userId}
+              accessToken={session.accessToken}
+            />
+          )}
           {specialView === "bitacora" && (
             <BitacoraRoot session={session} onBack={() => setSpecialView(null)} />
           )}
