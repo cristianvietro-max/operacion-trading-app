@@ -3169,11 +3169,125 @@ function TermsGate({ onAccept }) {
   );
 }
 
-const PLANES_PRO = [
-  { id: "x3", label: "PLAN X3", periodo: "3 meses / 90 días", meses: 3, precio: 60, diario: "0.66", ahorro: 0 },
-  { id: "x6", label: "PLAN X6", periodo: "6 meses / 180 días", meses: 6, precio: 100, diario: "0.55", ahorro: 20, popular: true },
-  { id: "x12", label: "PLAN X12", periodo: "12 meses / 365 días", meses: 12, precio: 120, diario: "0.33", ahorro: 120 },
+const CARACTERISTICAS_TODAS = [
+  "Acceso a la app",
+  "Tutoriales básicos",
+  "Señales de trading",
+  "Guías iniciales",
+  "Herramientas básicas",
+  "Estrategias de trading",
+  "Herramientas de análisis",
+  "Backtesting y bitácora",
+  "Contenido intermedio",
+  "Estrategias avanzadas",
+  "Indicadores exclusivos",
+  "Expert Advisors seleccionados",
+  "IA Mentors",
+  "Todas las estrategias",
+  "Todos los indicadores y Expert Advisors",
+  "Todas las apps e inteligencias artificiales",
+  "Sala operativa en vivo",
+  "Nuevas herramientas y actualizaciones",
+  "Acceso prioritario",
 ];
+
+const PLANES_PRO = [
+  {
+    id: "esencial",
+    label: "ESENCIAL",
+    subtitulo: "Para quien está comenzando",
+    periodo: "1 mes",
+    meses: 1,
+    precio: 17,
+    diario: "0.57",
+    ahorro: 0,
+    incluye: ["Acceso a la app", "Tutoriales básicos", "Señales de trading", "Guías iniciales", "Herramientas básicas"],
+  },
+  {
+    id: "trader",
+    label: "TRADER",
+    subtitulo: "Para quien quiere empezar a operar con un sistema",
+    periodo: "3 meses",
+    meses: 3,
+    precio: 47,
+    diario: "0.52",
+    ahorro: 4,
+    incluye: [
+      "Acceso a la app", "Tutoriales básicos", "Señales de trading", "Guías iniciales", "Herramientas básicas",
+      "Estrategias de trading", "Herramientas de análisis", "Backtesting y bitácora", "Contenido intermedio",
+    ],
+  },
+  {
+    id: "pro",
+    label: "PRO",
+    subtitulo: "Para quien busca automatización y mayor profundidad",
+    periodo: "6 meses",
+    meses: 6,
+    precio: 77,
+    diario: "0.43",
+    ahorro: 25,
+    popular: true,
+    incluye: [
+      "Acceso a la app", "Tutoriales básicos", "Señales de trading", "Guías iniciales", "Herramientas básicas",
+      "Estrategias de trading", "Herramientas de análisis", "Backtesting y bitácora", "Contenido intermedio",
+      "Estrategias avanzadas", "Indicadores exclusivos", "Expert Advisors seleccionados", "IA Mentors",
+    ],
+  },
+  {
+    id: "full",
+    label: "FULL ACCESS",
+    subtitulo: "La experiencia completa de Operación Trading",
+    periodo: "12 meses",
+    meses: 12,
+    precio: 147,
+    diario: "0.40",
+    ahorro: 57,
+    popular: true,
+    incluye: CARACTERISTICAS_TODAS,
+  },
+];
+
+function PlanFicha({ plan }) {
+  const [abierto, setAbierto] = useState(false);
+  return (
+    <div className="mt-2">
+      <button
+        onClick={() => setAbierto((a) => !a)}
+        className="text-[11px] font-semibold flex items-center gap-1"
+        style={{ color: C.green }}
+      >
+        {abierto ? "Ocultar detalle" : "Ver qué incluye este plan"}
+        {abierto ? <ChevronUp size={13} color={C.green} /> : <ChevronDown size={13} color={C.green} />}
+      </button>
+      {abierto && (
+        <div className="flex flex-col gap-1.5 mt-3">
+          {CARACTERISTICAS_TODAS.map((f) => {
+            const incluido = plan.incluye.includes(f);
+            return (
+              <div key={f} className="flex items-center gap-2">
+                {incluido ? (
+                  <Check size={13} color={C.green} strokeWidth={3} className="shrink-0" />
+                ) : (
+                  <X size={13} color={C.textDim} strokeWidth={2.5} className="shrink-0" />
+                )}
+                <span
+                  className="text-[12.5px]"
+                  style={{
+                    color: incluido ? C.text : C.textDim,
+                    textDecoration: incluido ? "none" : "line-through",
+                    opacity: incluido ? 1 : 0.6,
+                  }}
+                >
+                  {f}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function PlanesProView({ onBack }) {
   const [selected, setSelected] = useState(null);
@@ -3193,10 +3307,10 @@ function PlanesProView({ onBack }) {
       </p>
       <div className="flex flex-col gap-3 mb-4">
         {PLANES_PRO.map((p) => (
-          <button
+          <div
             key={p.id}
             onClick={() => setSelected(p.id)}
-            className="relative rounded-2xl px-5 py-4 text-left"
+            className="relative rounded-2xl px-5 py-4 text-left cursor-pointer"
             style={{
               backgroundColor: selected === p.id ? C.greenSoft : C.card,
               border: `1px solid ${selected === p.id ? C.green : C.border}`,
@@ -3207,10 +3321,10 @@ function PlanesProView({ onBack }) {
                 className="absolute -top-2.5 right-4 text-[9px] font-bold px-2 py-0.5 rounded-full"
                 style={{ backgroundColor: C.green, color: "#08090B" }}
               >
-                MÁS ELEGIDO
+                RECOMENDADO
               </span>
             )}
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-0.5">
               <span className="font-bold text-[15px]" style={{ color: C.text }}>{p.label}</span>
               {p.ahorro > 0 && (
                 <span
@@ -3221,6 +3335,7 @@ function PlanesProView({ onBack }) {
                 </span>
               )}
             </div>
+            <p className="text-[11px] mb-2" style={{ color: C.textDim }}>{p.subtitulo}</p>
             <div className="flex items-end justify-between">
               <div>
                 <span className="text-2xl font-bold" style={{ color: C.green }}>${p.precio}</span>
@@ -3231,7 +3346,10 @@ function PlanesProView({ onBack }) {
                 <div className="text-xs" style={{ color: C.textDim }}>{p.periodo}</div>
               </div>
             </div>
-          </button>
+            <div onClick={(e) => e.stopPropagation()}>
+              <PlanFicha plan={p} />
+            </div>
+          </div>
         ))}
       </div>
       {selected && (
