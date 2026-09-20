@@ -3242,7 +3242,7 @@ const PLANES_PRO = [
     precio: 147,
     diario: "0.40",
     ahorro: 57,
-    popular: true,
+    popular: "EL MÁS ELEGIDO",
     incluye: CARACTERISTICAS_TODAS,
   },
 ];
@@ -3321,7 +3321,7 @@ function PlanesProView({ onBack }) {
                 className="absolute -top-2.5 right-4 text-[9px] font-bold px-2 py-0.5 rounded-full"
                 style={{ backgroundColor: C.green, color: "#08090B" }}
               >
-                RECOMENDADO
+                {typeof p.popular === "string" ? p.popular : "RECOMENDADO"}
               </span>
             )}
             <div className="flex items-center justify-between mb-0.5">
@@ -3342,8 +3342,8 @@ function PlanesProView({ onBack }) {
                 <span className="text-xs ml-1" style={{ color: C.textDim }}>USD/USDT</span>
               </div>
               <div className="text-right">
-                <div className="font-semibold text-[15px]" style={{ color: C.text }}>${p.diario} USD/USDT por día</div>
-                <div className="text-xs" style={{ color: C.textDim }}>{p.periodo}</div>
+                <div className="font-semibold text-[15px]" style={{ color: C.text }}>{p.periodo}</div>
+                <div className="text-xs" style={{ color: C.textDim }}>${p.diario} USD/USDT por día</div>
               </div>
             </div>
             <div onClick={(e) => e.stopPropagation()}>
