@@ -3719,10 +3719,10 @@ function InicioDashboard({ signals, isAdmin, onOpenSignal, onNuevaSenal, onNavig
       {!profile?.vitalicio && (
         <button
           onClick={onDesbloquearPro}
-          className="w-full rounded-2xl py-3.5 mb-3 text-sm font-bold tracking-wide"
+          className="w-full rounded-2xl py-3 mb-3 text-sm font-bold tracking-wide"
           style={{ backgroundColor: "#F0B429", color: "#08090B" }}
         >
-          {profile?.pago ? "🔄 RENOVAR PRO" : "🔓 DESBLOQUEAR PRO"}
+          {profile?.pago ? "⚙️ MODIFICAR MI PLAN" : "🔓 DESBLOQUEAR PRO"}
         </button>
       )}
 
@@ -3742,11 +3742,11 @@ function InicioDashboard({ signals, isAdmin, onOpenSignal, onNuevaSenal, onNavig
           <button
             key={b.label}
             onClick={b.onClick}
-            className="rounded-2xl px-2 py-4 flex flex-col items-center gap-1.5"
+            className="rounded-2xl px-2 py-2.5 flex flex-col items-center gap-1"
             style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
           >
-            <b.icon size={20} color={C.green} />
-            <span className="text-[11px] font-semibold text-center uppercase" style={{ color: C.text }}>{b.label}</span>
+            <b.icon size={17} color={C.green} />
+            <span className="text-[10.5px] font-semibold text-center uppercase" style={{ color: C.text }}>{b.label}</span>
           </button>
         ))}
       </div>
@@ -6858,7 +6858,7 @@ export default function App() {
                 className="rounded-xl px-4 py-3 mb-4 text-[11px] text-center"
                 style={{ backgroundColor: "rgba(247,100,100,0.10)", color: C.red, border: `1px solid ${C.red}66` }}
               >
-                ⚠️ El trading implica riesgos. Esta aplicación tiene fines exclusivamente educativos e informativos y no constituye asesoramiento ni recomendación de inversión. Cada usuario es responsable de sus decisiones y del uso que haga de las señales compartidas, respetando siempre su propia gestión de riesgo y capital.
+                ⚠️ El trading implica riesgos. Esta aplicación tiene fines exclusivamente educativos e informativos y no constituye asesoramiento ni recomendación de inversión. Cada usuario es responsable de su uso, respetando siempre su propia gestión de riesgo y capital.
               </div>
               <button
                 onClick={() => {
