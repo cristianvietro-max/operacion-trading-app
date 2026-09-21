@@ -384,6 +384,7 @@ async function updateComprobante(id, payload, accessToken) {
       apikey: SUPABASE_ANON_KEY,
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
+      Prefer: "return=representation",
     },
     body: JSON.stringify(payload),
   });
@@ -2856,10 +2857,12 @@ function SubscriptionExpiredView({ userId, accessToken, onLogout }) {
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center px-6 text-center" style={{ backgroundColor: C.bg }}>
       <div className="mb-5"><BrandBadge size={80} /></div>
-      <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{ backgroundColor: C.redSoft }}>
-        <span style={{ fontSize: 28 }}>🔒</span>
+      <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{ backgroundColor: hasPending === true ? "rgba(240,180,41,0.14)" : C.redSoft }}>
+        <span style={{ fontSize: 28 }}>{hasPending === true ? "⏳" : "🔒"}</span>
       </div>
-      <p className="text-[15px] font-semibold mb-2" style={{ color: C.text }}>Tu suscripción venció</p>
+      <p className="text-[15px] font-semibold mb-2" style={{ color: C.text }}>
+        {hasPending === true ? "Pendiente de aprobación" : "Tu suscripción venció"}
+      </p>
 
       {hasPending === true ? (
         <p className="text-sm mb-6 max-w-xs" style={{ color: C.textDim }}>
