@@ -6191,7 +6191,7 @@ function BitacoraCuentasView({ cuentas, trades, movimientos, accessToken, userId
 
 function BitacoraDashboard({ trades, cuentas, movimientos, accessToken, userId, onBack, onIrOperaciones, onIrCuentas, onChanged }) {
   const [selectedCuentaId, setSelectedCuentaId] = useState("todas");
-  const [showQuickCuentaForm, setShowQuickCuentaForm] = useState(false);
+  const [showQuickTradeForm, setShowQuickTradeForm] = useState(false);
 
   const tradesFiltrados =
     selectedCuentaId === "todas" ? trades : trades.filter((t) => String(t.cuenta_id) === String(selectedCuentaId));
@@ -6241,7 +6241,7 @@ function BitacoraDashboard({ trades, cuentas, movimientos, accessToken, userId, 
         <span className="text-[19px] font-bold" style={{ color: C.text }}>Bitácora</span>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setShowQuickCuentaForm(true)}
+            onClick={() => setShowQuickTradeForm(true)}
             className="w-7 h-7 rounded-full flex items-center justify-center"
             style={{ backgroundColor: C.green }}
           >
@@ -6339,12 +6339,13 @@ function BitacoraDashboard({ trades, cuentas, movimientos, accessToken, userId, 
 
       <BitacoraCalendario trades={tradesFiltrados} embedded />
 
-      {showQuickCuentaForm && (
-        <BitacoraCuentaForm
+      {showQuickTradeForm && (
+        <BitacoraTradeForm
           accessToken={accessToken}
           userId={userId}
-          onClose={() => setShowQuickCuentaForm(false)}
-          onCreated={onChanged}
+          cuentas={cuentas}
+          onClose={() => setShowQuickTradeForm(false)}
+          onSaved={onChanged}
         />
       )}
     </div>
@@ -6857,7 +6858,7 @@ export default function App() {
                 className="rounded-xl px-4 py-3 mb-4 text-[11px] text-center"
                 style={{ backgroundColor: "rgba(247,100,100,0.10)", color: C.red, border: `1px solid ${C.red}66` }}
               >
-                ⚠️ Las señales no son obligatorias — solo se comparten a título informativo. Cada usuario es responsable de decidir si las toma o no.
+                ⚠️ El trading implica riesgos. Esta aplicación tiene fines exclusivamente educativos e informativos y no constituye asesoramiento ni recomendación de inversión. Cada usuario es responsable de sus decisiones y del uso que haga de las señales compartidas, respetando siempre su propia gestión de riesgo y capital.
               </div>
               <button
                 onClick={() => {
