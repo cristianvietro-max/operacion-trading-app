@@ -2839,7 +2839,7 @@ function PaymentProofForm({ userId, initialMeses, onClose, onSent }) {
   );
 }
 
-function SubscriptionExpiredView({ userId, accessToken, onLogout }) {
+function SubscriptionExpiredView({ userId, accessToken, onLogout, onEnterPreview }) {
   const [hasPending, setHasPending] = useState(null); // null = cargando
   const [showForm, setShowForm] = useState(false);
 
@@ -2882,6 +2882,15 @@ function SubscriptionExpiredView({ userId, accessToken, onLogout }) {
             style={{ backgroundColor: C.green, color: "#08090B" }}
           >
             Subir comprobante de pago
+          </button>
+        )}
+        {hasPending === true && (
+          <button
+            onClick={onEnterPreview}
+            className="rounded-2xl py-3.5 text-sm font-semibold"
+            style={{ backgroundColor: C.green, color: "#08090B" }}
+          >
+            Ir a la app
           </button>
         )}
         <button
@@ -3769,18 +3778,23 @@ function InicioDashboard({ signals, isAdmin, onOpenSignal, onNuevaSenal, onNavig
         ))}
       </div>
 
-      <button
-        onClick={() => onNavigate("mas")}
-        className="w-full rounded-xl px-2 py-3 flex items-center justify-center gap-2 mb-4"
-        style={{
-          backgroundColor: C.cardAlt,
-          border: `1px solid ${C.border}`,
-          boxShadow: "0 4px 14px rgba(0,0,0,0.22)",
-        }}
-      >
-        <Menu size={15} color={C.textDim} />
-        <span className="text-[11px] font-semibold" style={{ color: C.textDim }}>MÁS</span>
-      </button>
+      <div className="grid grid-cols-3 gap-2 mb-4">
+        {MAS_SECTIONS.map((s) => (
+          <button
+            key={s.id}
+            onClick={() => onNavigate("mas", { masSection: s.id })}
+            className="rounded-xl px-2 py-3 flex flex-col items-center gap-1"
+            style={{
+              backgroundColor: C.cardAlt,
+              border: `1px solid ${C.border}`,
+              boxShadow: "0 4px 14px rgba(0,0,0,0.22)",
+            }}
+          >
+            <s.icon size={15} color={C.textDim} />
+            <span className="text-[9px] text-center leading-tight uppercase" style={{ color: C.textDim }}>{s.label}</span>
+          </button>
+        ))}
+      </div>
 
       {/* Próxima clase en vivo */}
       {proximoEvento && (
@@ -6566,6 +6580,7 @@ export default function App() {
   const [session, setSession] = useState(null); // { accessToken, userId, profile }
   const [restoringSession, setRestoringSession] = useState(true);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [previewLocked, setPreviewLocked] = useState(false);
   const exitingRef = useRef(false);
   const popHandlerRef = useRef(null);
 
@@ -6785,12 +6800,14 @@ export default function App() {
   if (!session.profile || session.profile.aprobado === false) {
     return <PendingApprovalView onLogout={handleLogout} />;
   }
-  if (!isAdmin && computeSubStatus(session.profile).label === "Vencida") {
+  const vencidoBloqueante = !isAdmin && computeSubStatus(session.profile).label === "Vencida";
+  if (vencidoBloqueante && !previewLocked) {
     return (
       <SubscriptionExpiredView
         userId={session.userId}
         accessToken={session.accessToken}
         onLogout={handleLogout}
+        onEnterPreview={() => setPreviewLocked(true)}
       />
     );
   }
@@ -6801,8 +6818,19 @@ export default function App() {
     (!session.profile.nombre?.trim() || !session.profile.telefono?.trim()) &&
     !personalDataDismissed;
 
+  const bloqueadoPorVencimiento = vencidoBloqueante && previewLocked;
+
   return (
-    <div className="min-h-screen flex flex-col" style={{ backgroundColor: C.bg }}>
+    <>
+    <div
+      className="min-h-screen flex flex-col"
+      style={{
+        backgroundColor: C.bg,
+        ...(bloqueadoPorVencimiento
+          ? { filter: "grayscale(1) brightness(0.55)", pointerEvents: "none", userSelect: "none" }
+          : {}),
+      }}
+    >
       <TopBar
         nombre={nombre}
         avatar={avatar}
@@ -7286,5 +7314,23 @@ export default function App() {
         })}
       </div>
     </div>
+    {bloqueadoPorVencimiento && (
+      <div
+        className="fixed bottom-0 left-0 right-0 z-[200] px-5 py-4 flex flex-col items-center gap-3"
+        style={{ backgroundColor: C.card, borderTop: `1px solid ${C.border}` }}
+      >
+        <p className="text-sm text-center font-medium" style={{ color: C.text }}>
+          ⏳ Tu cuenta está pendiente de aprobación. Podés mirar la app, pero no vas a poder usarla hasta que un admin confirme tu pago.
+        </p>
+        <button
+          onClick={() => setPreviewLocked(false)}
+          className="w-full max-w-xs rounded-2xl py-3 text-sm font-semibold"
+          style={{ backgroundColor: C.green, color: "#08090B" }}
+        >
+          Volver
+        </button>
+      </div>
+    )}
+    </>
   );
 }
