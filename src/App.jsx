@@ -7090,11 +7090,11 @@ export default function App() {
           )}
 
           {tab === "mas" && masSection === "calendario-mas" && (
-            <CalendarioEconomicoWrap themeName={themeName} onBack={() => setMasSection(null)} />
+            <CalendarioEconomicoWrap themeName={themeName} onBack={goHome} />
           )}
           {tab === "mas" && masSection === "soporte" && (
             <div className="max-w-md mx-auto">
-              <ScreenHeader title="Soporte" onBack={() => setMasSection(null)} />
+              <ScreenHeader title="Soporte" onBack={goHome} />
 
               <div className="mb-4">
                 <div className="text-[15px] font-bold mb-1" style={{ color: C.text }}>
