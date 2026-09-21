@@ -6889,7 +6889,7 @@ export default function App() {
                 className="rounded-xl px-4 py-3 mb-4 text-[11px] text-center"
                 style={{ backgroundColor: "rgba(247,100,100,0.10)", color: C.red, border: `1px solid ${C.red}66` }}
               >
-                ⚠️ El trading implica riesgos. Esta aplicación tiene fines exclusivamente educativos e informativos y no constituye asesoramiento ni recomendación de inversión. Cada usuario es responsable de su uso, respetando siempre su propia gestión de riesgo y capital.
+                ⚠️ El trading implica riesgos. Esta aplicación ofrece contenido educativo e informativo, no asesoramiento financiero. Cada usuario es responsable de sus decisiones, operaciones y gestión de capital.
               </div>
               <button
                 onClick={() => {
