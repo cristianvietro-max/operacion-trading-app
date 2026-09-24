@@ -318,6 +318,45 @@ async function uploadAvatar(file) {
   return `${SUPABASE_URL}/storage/v1/object/public/avatares/${filename}`;
 }
 
+async function uploadTraderAvatar(file) {
+  const ext = file.name.split(".").pop() || "jpg";
+  const filename = `${Date.now()}-${Math.round(Math.random() * 1e6)}.${ext}`;
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/traders-avatares/${filename}`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      "Content-Type": file.type || "application/octet-stream",
+    },
+    body: file,
+  });
+  if (!res.ok) throw new Error("No se pudo subir la foto");
+  return `${SUPABASE_URL}/storage/v1/object/public/traders-avatares/${filename}`;
+}
+
+async function fetchComunidadAvatares() {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/comunidad_avatares?select=*`, {
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+  });
+  if (!res.ok) throw new Error("No se pudieron cargar los avatares");
+  return res.json();
+}
+
+async function upsertComunidadAvatar(handle, avatarUrl) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/comunidad_avatares`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      "Content-Type": "application/json",
+      Prefer: "resolution=merge-duplicates,return=representation",
+    },
+    body: JSON.stringify({ handle, avatar_url: avatarUrl }),
+  });
+  if (!res.ok) throw new Error("No se pudo guardar la foto");
+  return res.json();
+}
+
 async function uploadPaymentProof(file) {
   const ext = file.name.split(".").pop() || "jpg";
   const filename = `${Date.now()}-${Math.round(Math.random() * 1e6)}.${ext}`;
@@ -892,6 +931,9 @@ async function fetchSignals() {
     sl: Number(r.stop_loss),
     tp: Number(r.take_profit),
     tp2: r.take_profit_2 != null ? Number(r.take_profit_2) : null,
+    entradaOp2: r.op2_precio_entrada != null ? Number(r.op2_precio_entrada) : null,
+    slOp2: r.op2_stop_loss != null ? Number(r.op2_stop_loss) : null,
+    tpOp2: r.op2_take_profit != null ? Number(r.op2_take_profit) : null,
     tipoOrden: r.tipo_orden,
     autor: r.autor,
     nota: r.nota || "",
@@ -1171,6 +1213,15 @@ function formatSignalText(signal) {
     `Stop Loss: ${formatPriceShare(signal.sl, signal.par)}`,
     `Take Profit: ${formatPriceShare(signal.tp, signal.par)}`,
     ...(signal.tp2 != null ? [`Take Profit 2: ${formatPriceShare(signal.tp2, signal.par)}`] : []),
+    ...(signal.entradaOp2 != null
+      ? [
+          ``,
+          `— TRADE 2 —`,
+          `Entrada: ${formatPriceShare(signal.entradaOp2, signal.par)}`,
+          ...(signal.slOp2 != null ? [`Stop Loss: ${formatPriceShare(signal.slOp2, signal.par)}`] : []),
+          ...(signal.tpOp2 != null ? [`Take Profit: ${formatPriceShare(signal.tpOp2, signal.par)}`] : []),
+        ]
+      : []),
     ...(signal.nota ? ["", `Nota: ${signal.nota}`] : []),
     ``,
     `Operación Trading — ${signal.autor}`,
@@ -1344,6 +1395,24 @@ function DetailView({ signal, onBack, risk, onEdit, isAdmin }) {
           <CopyField label="TAKE PROFIT 2" value={signal.tp2} formatted={formatPrice(signal.tp2)} color={C.green} />
         </div>
       )}
+      {signal.entradaOp2 != null && (
+        <div className="mb-4">
+          <div className="text-[11px] tracking-widest font-semibold mb-2 text-center" style={{ color: C.textDim }}>
+            TRADE 2
+          </div>
+          <div className="flex gap-3 mb-3">
+            <CopyField label="PRECIO ENTRADA" value={signal.entradaOp2} formatted={formatPrice(signal.entradaOp2)} />
+          </div>
+          <div className="flex gap-3">
+            {signal.slOp2 != null && (
+              <CopyField label="STOP LOSS" value={signal.slOp2} formatted={formatPrice(signal.slOp2)} color={C.red} />
+            )}
+            {signal.tpOp2 != null && (
+              <CopyField label="TAKE PROFIT" value={signal.tpOp2} formatted={formatPrice(signal.tpOp2)} color={C.green} />
+            )}
+          </div>
+        </div>
+      )}
 
       {signal.nota && (
         <div
@@ -1413,6 +1482,10 @@ function AdminForm({ onClose, onCreated, existingSignal, onDeleted }) {
   const [stopLoss, setStopLoss] = useState(existingSignal ? String(existingSignal.sl) : "");
   const [takeProfit, setTakeProfit] = useState(existingSignal ? String(existingSignal.tp) : "");
   const [takeProfit2, setTakeProfit2] = useState(existingSignal?.tp2 != null ? String(existingSignal.tp2) : "");
+  const [tieneOp2, setTieneOp2] = useState(existingSignal?.entradaOp2 != null);
+  const [entradaOp2, setEntradaOp2] = useState(existingSignal?.entradaOp2 != null ? String(existingSignal.entradaOp2) : "");
+  const [slOp2, setSlOp2] = useState(existingSignal?.slOp2 != null ? String(existingSignal.slOp2) : "");
+  const [tpOp2, setTpOp2] = useState(existingSignal?.tpOp2 != null ? String(existingSignal.tpOp2) : "");
   const [tipoOrden, setTipoOrden] = useState(existingSignal?.tipoOrden || "Buy Limit");
   const tiposDisponibles = direccion === "venta" ? TIPOS_ORDEN_VENTA : TIPOS_ORDEN_COMPRA;
 
@@ -1479,6 +1552,9 @@ function AdminForm({ onClose, onCreated, existingSignal, onDeleted }) {
         stop_loss: Number(stopLoss),
         take_profit: Number(takeProfit),
         take_profit_2: takeProfit2.trim() ? Number(takeProfit2) : null,
+        op2_precio_entrada: tieneOp2 && entradaOp2.trim() ? Number(entradaOp2) : null,
+        op2_stop_loss: tieneOp2 && slOp2.trim() ? Number(slOp2) : null,
+        op2_take_profit: tieneOp2 && tpOp2.trim() ? Number(tpOp2) : null,
         tipo_orden: tipoOrden,
         estado,
         pips: Number(pips),
@@ -1607,6 +1683,57 @@ function AdminForm({ onClose, onCreated, existingSignal, onDeleted }) {
               style={inputStyle}
             />
           </div>
+
+          <button
+            type="button"
+            onClick={() => setTieneOp2((v) => !v)}
+            className="flex items-center gap-1"
+          >
+            <span className="text-[13px] font-semibold" style={{ color: C.green }}>
+              {tieneOp2 ? "Ocultar segunda operación (Trade 2)" : "+ Agregar una segunda operación (Trade 2)"}
+            </span>
+            {tieneOp2 ? <ChevronUp size={15} color={C.green} /> : <ChevronDown size={15} color={C.green} />}
+          </button>
+
+          {tieneOp2 && (
+            <div className="rounded-2xl p-3" style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.borderSoft}` }}>
+              <div className="text-[11px] tracking-widest font-semibold mb-2" style={{ color: C.textDim }}>
+                TRADE 2
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>ENTRADA</label>
+                  <input
+                    value={entradaOp2}
+                    onChange={(e) => setEntradaOp2(e.target.value)}
+                    inputMode="decimal"
+                    className="w-full mt-1 rounded-xl px-3 py-3 text-sm font-mono outline-none"
+                    style={inputStyle}
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>SL</label>
+                  <input
+                    value={slOp2}
+                    onChange={(e) => setSlOp2(e.target.value)}
+                    inputMode="decimal"
+                    className="w-full mt-1 rounded-xl px-3 py-3 text-sm font-mono outline-none"
+                    style={inputStyle}
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>TP</label>
+                  <input
+                    value={tpOp2}
+                    onChange={(e) => setTpOp2(e.target.value)}
+                    inputMode="decimal"
+                    className="w-full mt-1 rounded-xl px-3 py-3 text-sm font-mono outline-none"
+                    style={inputStyle}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-2">
             <div>
@@ -6495,11 +6622,132 @@ function NovedadesSubView({ onBack, isAdmin }) {
   );
 }
 
-function ComunidadSubView({ onBack }) {
+function ComunidadSubView({ onBack, isAdmin }) {
+  const [avatares, setAvatares] = useState({});
+  const [uploadingHandle, setUploadingHandle] = useState(null);
+
+  const load = () => {
+    fetchComunidadAvatares()
+      .then((rows) => {
+        const map = {};
+        rows.forEach((r) => {
+          map[r.handle] = r.avatar_url;
+        });
+        setAvatares(map);
+      })
+      .catch(() => {});
+  };
+
+  React.useEffect(() => {
+    load();
+  }, []);
+
+  const handleUpload = async (handle, file) => {
+    if (!file) return;
+    setUploadingHandle(handle);
+    try {
+      const url = await uploadTraderAvatar(file);
+      await upsertComunidadAvatar(handle, url);
+      load();
+    } catch (err) {
+      alert(err.message || "No se pudo subir la foto");
+    } finally {
+      setUploadingHandle(null);
+    }
+  };
+
   return (
     <div className="max-w-md mx-auto">
-      <ScreenHeader title="Comunidad" onBack={onBack} />
-      <ComunidadView />
+      <ScreenHeader title="Discord y Traders" onBack={onBack} />
+
+      <div
+        className="rounded-2xl p-5 mb-6 text-center"
+        style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
+      >
+        <div
+          className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3"
+          style={{ backgroundColor: "#5865F2" }}
+        >
+          <MessageCircle size={26} color="#fff" />
+        </div>
+        <div className="font-bold text-[16px] mb-2" style={{ color: C.text }}>
+          ¡Bienvenido a la comunidad!
+        </div>
+        <p className="text-sm mb-4" style={{ color: C.textDim }}>
+          Sumate a nuestra comunidad gratuita de Discord para compartir ideas, resolver dudas y conectar con otros
+          traders de Operación Trading.
+        </p>
+        <a
+          href="https://discord.gg/TYX7CUNDF"
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold"
+          style={{ backgroundColor: "#5865F2", color: "#fff" }}
+        >
+          <MessageCircle size={16} color="#fff" />
+          Unirme al Discord
+        </a>
+      </div>
+
+      <div className="flex items-center gap-3 mb-4">
+        <div className="flex-1 h-px" style={{ backgroundColor: C.borderSoft }} />
+        <span className="text-[11px] tracking-widest font-semibold whitespace-nowrap" style={{ color: C.textDim }}>
+          TRADERS DE LA COMUNIDAD
+        </span>
+        <div className="flex-1 h-px" style={{ backgroundColor: C.borderSoft }} />
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        {TRADERS.map((t) => {
+          const avatarUrl = avatares[t.handle] || t.avatar;
+          return (
+            <div key={t.handle} className="flex flex-col items-center gap-2">
+              <div className="relative">
+                <a href={t.url} target="_blank" rel="noreferrer">
+                  <img
+                    src={avatarUrl}
+                    alt={t.name}
+                    className="w-16 h-16 rounded-full object-cover"
+                    style={{ border: `2px solid ${C.green}` }}
+                  />
+                </a>
+                {isAdmin && (
+                  <label
+                    className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center cursor-pointer"
+                    style={{ backgroundColor: C.green, border: `2px solid ${C.bg}` }}
+                  >
+                    {uploadingHandle === t.handle ? (
+                      <span className="text-[8px] font-bold" style={{ color: "#08090B" }}>...</span>
+                    ) : (
+                      <Camera size={11} color="#08090B" />
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => handleUpload(t.handle, e.target.files?.[0] || null)}
+                    />
+                  </label>
+                )}
+              </div>
+              <div className="text-center">
+                <div className="text-[11px] font-semibold leading-tight" style={{ color: C.text }}>
+                  {t.name}
+                </div>
+                <a
+                  href={t.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[9px]"
+                  style={{ color: C.green }}
+                >
+                  {t.handle}
+                </a>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -7108,7 +7356,7 @@ export default function App() {
             />
           )}
           {tab === "mas" && masSection === "comunidad" && comunidadView === "discord" && (
-            <ComunidadSubView onBack={() => setComunidadView(null)} />
+            <ComunidadSubView onBack={() => setComunidadView(null)} isAdmin={isAdmin} />
           )}
           {tab === "mas" && masSection === "comunidad" && comunidadView === "noticias-internas" && (
             <NovedadesSubView onBack={() => setComunidadView(null)} isAdmin={isAdmin} />
