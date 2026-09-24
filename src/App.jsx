@@ -891,6 +891,7 @@ async function fetchSignals() {
     entrada: Number(r.precio_entrada),
     sl: Number(r.stop_loss),
     tp: Number(r.take_profit),
+    tp2: r.take_profit_2 != null ? Number(r.take_profit_2) : null,
     tipoOrden: r.tipo_orden,
     autor: r.autor,
     nota: r.nota || "",
@@ -1169,6 +1170,7 @@ function formatSignalText(signal) {
     `Entrada: ${formatPriceShare(signal.entrada, signal.par)}`,
     `Stop Loss: ${formatPriceShare(signal.sl, signal.par)}`,
     `Take Profit: ${formatPriceShare(signal.tp, signal.par)}`,
+    ...(signal.tp2 != null ? [`Take Profit 2: ${formatPriceShare(signal.tp2, signal.par)}`] : []),
     ...(signal.nota ? ["", `Nota: ${signal.nota}`] : []),
     ``,
     `Operación Trading — ${signal.autor}`,
@@ -1337,6 +1339,11 @@ function DetailView({ signal, onBack, risk, onEdit, isAdmin }) {
         <CopyField label="STOP LOSS" value={signal.sl} formatted={formatPrice(signal.sl)} color={C.red} />
         <CopyField label="TAKE PROFIT" value={signal.tp} formatted={formatPrice(signal.tp)} color={C.green} />
       </div>
+      {signal.tp2 != null && (
+        <div className="flex gap-3 mb-4">
+          <CopyField label="TAKE PROFIT 2" value={signal.tp2} formatted={formatPrice(signal.tp2)} color={C.green} />
+        </div>
+      )}
 
       {signal.nota && (
         <div
@@ -1405,6 +1412,7 @@ function AdminForm({ onClose, onCreated, existingSignal, onDeleted }) {
   const [precioEntrada, setPrecioEntrada] = useState(existingSignal ? String(existingSignal.entrada) : "");
   const [stopLoss, setStopLoss] = useState(existingSignal ? String(existingSignal.sl) : "");
   const [takeProfit, setTakeProfit] = useState(existingSignal ? String(existingSignal.tp) : "");
+  const [takeProfit2, setTakeProfit2] = useState(existingSignal?.tp2 != null ? String(existingSignal.tp2) : "");
   const [tipoOrden, setTipoOrden] = useState(existingSignal?.tipoOrden || "Buy Limit");
   const tiposDisponibles = direccion === "venta" ? TIPOS_ORDEN_VENTA : TIPOS_ORDEN_COMPRA;
 
@@ -1415,6 +1423,12 @@ function AdminForm({ onClose, onCreated, existingSignal, onDeleted }) {
   }, [direccion]);
 
   const [estado, setEstado] = useState(existingSignal?.estado || "pendiente");
+
+  React.useEffect(() => {
+    if (tipoOrden === "Market" && estado === "pendiente") {
+      setEstado("activa");
+    }
+  }, [tipoOrden]);
   const [autor, setAutor] = useState(existingSignal?.autor || "");
   const [nota, setNota] = useState(existingSignal?.nota || "");
   const [fechaCarga, setFechaCarga] = useState(() => {
@@ -1464,6 +1478,7 @@ function AdminForm({ onClose, onCreated, existingSignal, onDeleted }) {
         precio_entrada: Number(precioEntrada),
         stop_loss: Number(stopLoss),
         take_profit: Number(takeProfit),
+        take_profit_2: takeProfit2.trim() ? Number(takeProfit2) : null,
         tipo_orden: tipoOrden,
         estado,
         pips: Number(pips),
@@ -1582,6 +1597,18 @@ function AdminForm({ onClose, onCreated, existingSignal, onDeleted }) {
           </div>
 
           <div>
+            <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>TP2 (OPCIONAL)</label>
+            <input
+              value={takeProfit2}
+              onChange={(e) => setTakeProfit2(e.target.value)}
+              inputMode="decimal"
+              placeholder="Segundo objetivo, si tenés uno"
+              className="w-full mt-1 rounded-xl px-3 py-3 text-sm font-mono outline-none"
+              style={inputStyle}
+            />
+          </div>
+
+          <div>
             <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>TIPO DE ORDEN</label>
             <select
               value={tipoOrden}
@@ -1603,7 +1630,7 @@ function AdminForm({ onClose, onCreated, existingSignal, onDeleted }) {
               className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none capitalize"
               style={inputStyle}
             >
-              {ESTADOS.map((e2) => (
+              {ESTADOS.filter((e2) => !(tipoOrden === "Market" && e2 === "pendiente")).map((e2) => (
                 <option key={e2} value={e2}>{e2}</option>
               ))}
             </select>
