@@ -1608,32 +1608,34 @@ function AdminForm({ onClose, onCreated, existingSignal, onDeleted }) {
             />
           </div>
 
-          <div>
-            <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>TIPO DE ORDEN</label>
-            <select
-              value={tipoOrden}
-              onChange={(e) => setTipoOrden(e.target.value)}
-              className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
-              style={inputStyle}
-            >
-              {tiposDisponibles.map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
-          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>TIPO DE ORDEN</label>
+              <select
+                value={tipoOrden}
+                onChange={(e) => setTipoOrden(e.target.value)}
+                className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
+                style={inputStyle}
+              >
+                {tiposDisponibles.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
 
-          <div>
-            <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>ESTADO</label>
-            <select
-              value={estado}
-              onChange={(e) => setEstado(e.target.value)}
-              className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none capitalize"
-              style={inputStyle}
-            >
-              {ESTADOS.filter((e2) => !(tipoOrden === "Market" && e2 === "pendiente")).map((e2) => (
-                <option key={e2} value={e2}>{e2}</option>
-              ))}
-            </select>
+            <div>
+              <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>ESTADO</label>
+              <select
+                value={estado}
+                onChange={(e) => setEstado(e.target.value)}
+                className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none capitalize"
+                style={inputStyle}
+              >
+                {ESTADOS.filter((e2) => !(tipoOrden === "Market" && e2 === "pendiente")).map((e2) => (
+                  <option key={e2} value={e2}>{e2}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {pips !== null && (
