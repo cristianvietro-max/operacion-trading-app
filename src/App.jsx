@@ -439,6 +439,10 @@ async function fetchNovedades() {
   return res.json();
 }
 
+async function uploadNovedadImage(file) {
+  return uploadToBucket("novedades-imagenes", file);
+}
+
 async function createNovedad(payload) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/novedades`, {
     method: "POST",
@@ -2030,16 +2034,34 @@ function NovedadForm({ onClose, onCreated }) {
   const [tipo, setTipo] = useState("noticia");
   const [titulo, setTitulo] = useState("");
   const [fecha, setFecha] = useState("");
+  const [enlace, setEnlace] = useState("");
+  const [file, setFile] = useState(null);
+  const [preview, setPreview] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
   const inputStyle = { backgroundColor: C.cardAlt, color: C.text, border: `1px solid ${C.border}` };
 
+  const handleFile = (f) => {
+    setFile(f);
+    setPreview(f ? URL.createObjectURL(f) : null);
+  };
+
   const handleSubmit = async () => {
     setSubmitting(true);
     setError(null);
     try {
-      await createNovedad({ tipo, titulo: titulo.trim(), fecha: fecha.trim() });
+      let imagenUrl = null;
+      if (file) {
+        imagenUrl = await uploadNovedadImage(file);
+      }
+      await createNovedad({
+        tipo,
+        titulo: titulo.trim(),
+        fecha: fecha.trim(),
+        enlace: enlace.trim() || null,
+        imagen_url: imagenUrl,
+      });
       onCreated();
       onClose();
     } catch (err) {
@@ -2106,6 +2128,41 @@ function NovedadForm({ onClose, onCreated }) {
             className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
             style={inputStyle}
           />
+        </div>
+
+        <div className="mb-3">
+          <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>LINK (OPCIONAL)</label>
+          <input
+            value={enlace}
+            onChange={(e) => setEnlace(e.target.value)}
+            placeholder="https://..."
+            className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
+            style={inputStyle}
+          />
+        </div>
+
+        <div className="mb-4">
+          <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>IMAGEN (OPCIONAL)</label>
+          <label
+            className="mt-1 flex flex-col items-center justify-center rounded-xl h-32 cursor-pointer overflow-hidden"
+            style={{ backgroundColor: C.cardAlt, border: `1px dashed ${C.border}` }}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              const f = e.dataTransfer.files?.[0];
+              if (f) handleFile(f);
+            }}
+          >
+            {preview ? (
+              <img src={preview} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <div className="flex flex-col items-center gap-1">
+                <UploadCloud size={22} color={C.textDim} />
+                <span className="text-xs" style={{ color: C.textDim }}>Subir imagen</span>
+              </div>
+            )}
+            <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFile(e.target.files?.[0] || null)} />
+          </label>
         </div>
 
         {error && <p className="text-sm text-center mb-3" style={{ color: C.red }}>{error}</p>}
@@ -2471,23 +2528,34 @@ function NovedadesView({ isAdmin }) {
       {!loading && error && <p className="text-sm text-center py-10" style={{ color: C.red }}>{error}</p>}
 
       <div className="flex flex-col gap-3">
-        {!loading && !error && novedades.map((n) => (
-          <div
-            key={n.id}
-            className="rounded-2xl px-5 py-4 flex items-start gap-3"
-            style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
-          >
-            {n.tipo === "evento" ? (
-              <CalendarDays size={20} color={C.blue} className="mt-0.5 shrink-0" />
-            ) : (
-              <Bell size={20} color={C.green} className="mt-0.5 shrink-0" />
-            )}
-            <div>
-              <div className="font-semibold text-[14px]" style={{ color: C.text }}>{n.titulo}</div>
-              <div className="text-xs mt-0.5" style={{ color: C.textDim }}>{n.fecha}</div>
-            </div>
-          </div>
-        ))}
+        {!loading && !error && novedades.map((n) => {
+          const Wrapper = n.enlace ? "a" : "div";
+          const wrapperProps = n.enlace ? { href: n.enlace, target: "_blank", rel: "noreferrer" } : {};
+          return (
+            <Wrapper
+              key={n.id}
+              {...wrapperProps}
+              className="rounded-2xl overflow-hidden flex items-start gap-3"
+              style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
+            >
+              {n.imagen_url ? (
+                <img src={n.imagen_url} alt="" className="w-16 h-16 object-cover shrink-0" />
+              ) : (
+                <div className="w-16 h-16 flex items-center justify-center shrink-0" style={{ backgroundColor: C.cardAlt }}>
+                  {n.tipo === "evento" ? (
+                    <CalendarDays size={20} color={C.blue} />
+                  ) : (
+                    <Bell size={20} color={C.green} />
+                  )}
+                </div>
+              )}
+              <div className="py-4 pr-4 min-w-0">
+                <div className="font-semibold text-[14px]" style={{ color: C.text }}>{n.titulo}</div>
+                <div className="text-xs mt-0.5" style={{ color: C.textDim }}>{n.fecha}</div>
+              </div>
+            </Wrapper>
+          );
+        })}
         {!loading && !error && novedades.length === 0 && (
           <p className="text-sm text-center py-10" style={{ color: C.textDim }}>Todavía no hay novedades cargadas.</p>
         )}
@@ -6622,40 +6690,7 @@ function NovedadesSubView({ onBack, isAdmin }) {
   );
 }
 
-function ComunidadSubView({ onBack, isAdmin }) {
-  const [avatares, setAvatares] = useState({});
-  const [uploadingHandle, setUploadingHandle] = useState(null);
-
-  const load = () => {
-    fetchComunidadAvatares()
-      .then((rows) => {
-        const map = {};
-        rows.forEach((r) => {
-          map[r.handle] = r.avatar_url;
-        });
-        setAvatares(map);
-      })
-      .catch(() => {});
-  };
-
-  React.useEffect(() => {
-    load();
-  }, []);
-
-  const handleUpload = async (handle, file) => {
-    if (!file) return;
-    setUploadingHandle(handle);
-    try {
-      const url = await uploadTraderAvatar(file);
-      await upsertComunidadAvatar(handle, url);
-      load();
-    } catch (err) {
-      alert(err.message || "No se pudo subir la foto");
-    } finally {
-      setUploadingHandle(null);
-    }
-  };
-
+function ComunidadSubView({ onBack }) {
   return (
     <div className="max-w-md mx-auto">
       <ScreenHeader title="Discord y Traders" onBack={onBack} />
@@ -6699,52 +6734,23 @@ function ComunidadSubView({ onBack, isAdmin }) {
 
       <div className="grid grid-cols-3 gap-3">
         {TRADERS.map((t) => {
-          const avatarUrl = avatares[t.handle] || t.avatar;
           return (
-            <div key={t.handle} className="flex flex-col items-center gap-2">
-              <div className="relative">
-                <a href={t.url} target="_blank" rel="noreferrer">
-                  <img
-                    src={avatarUrl}
-                    alt={t.name}
-                    className="w-16 h-16 rounded-full object-cover"
-                    style={{ border: `2px solid ${C.green}` }}
-                  />
-                </a>
-                {isAdmin && (
-                  <label
-                    className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center cursor-pointer"
-                    style={{ backgroundColor: C.green, border: `2px solid ${C.bg}` }}
-                  >
-                    {uploadingHandle === t.handle ? (
-                      <span className="text-[8px] font-bold" style={{ color: "#08090B" }}>...</span>
-                    ) : (
-                      <Camera size={11} color="#08090B" />
-                    )}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => handleUpload(t.handle, e.target.files?.[0] || null)}
-                    />
-                  </label>
-                )}
-              </div>
+            <a key={t.handle} href={t.url} target="_blank" rel="noreferrer" className="flex flex-col items-center gap-2">
+              <img
+                src={t.avatar}
+                alt={t.name}
+                className="w-16 h-16 rounded-full object-cover"
+                style={{ border: `2px solid ${C.green}` }}
+              />
               <div className="text-center">
                 <div className="text-[11px] font-semibold leading-tight" style={{ color: C.text }}>
                   {t.name}
                 </div>
-                <a
-                  href={t.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-[9px]"
-                  style={{ color: C.green }}
-                >
+                <span className="text-[9px]" style={{ color: C.green }}>
                   {t.handle}
-                </a>
+                </span>
               </div>
-            </div>
+            </a>
           );
         })}
       </div>
@@ -7356,7 +7362,7 @@ export default function App() {
             />
           )}
           {tab === "mas" && masSection === "comunidad" && comunidadView === "discord" && (
-            <ComunidadSubView onBack={() => setComunidadView(null)} isAdmin={isAdmin} />
+            <ComunidadSubView onBack={() => setComunidadView(null)} />
           )}
           {tab === "mas" && masSection === "comunidad" && comunidadView === "noticias-internas" && (
             <NovedadesSubView onBack={() => setComunidadView(null)} isAdmin={isAdmin} />
