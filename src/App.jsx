@@ -1212,16 +1212,18 @@ function formatPriceShare(n, par) {
 function formatSignalText(signal) {
   const dir = signal.direccion === "venta" ? "VENTA" : "COMPRA";
   const estadoInfo = ESTADO_STYLES[signal.estado] || { label: signal.estado };
+  const esDoble = signal.entradaOp2 != null;
   return [
     `📊 *${signal.par}* — ${dir}`,
+    `Tipo de orden: ${signal.tipoOrden}`,
     `Estado: ${estadoInfo.label}`,
     ``,
-    `Tipo de orden: ${signal.tipoOrden}`,
+    ...(esDoble ? [`— TRADE 1 —`] : []),
     `Entrada: ${formatPriceShare(signal.entrada, signal.par)}`,
     `Stop Loss: ${formatPriceShare(signal.sl, signal.par)}`,
     `Take Profit: ${formatPriceShare(signal.tp, signal.par)}`,
     ...(signal.tp2 != null ? [`Take Profit 2: ${formatPriceShare(signal.tp2, signal.par)}`] : []),
-    ...(signal.entradaOp2 != null
+    ...(esDoble
       ? [
           ``,
           `— TRADE 2 —`,
@@ -1504,6 +1506,7 @@ function AdminForm({ onClose, onCreated, existingSignal, onDeleted }) {
   const [stopLoss, setStopLoss] = useState(existingSignal ? String(existingSignal.sl) : "");
   const [takeProfit, setTakeProfit] = useState(existingSignal ? String(existingSignal.tp) : "");
   const [takeProfit2, setTakeProfit2] = useState(existingSignal?.tp2 != null ? String(existingSignal.tp2) : "");
+  const [mostrarTP2, setMostrarTP2] = useState(existingSignal?.tp2 != null);
   const [tieneOp2, setTieneOp2] = useState(existingSignal?.entradaOp2 != null);
   const [entradaOp2, setEntradaOp2] = useState(existingSignal?.entradaOp2 != null ? String(existingSignal.entradaOp2) : "");
   const [slOp2, setSlOp2] = useState(existingSignal?.slOp2 != null ? String(existingSignal.slOp2) : "");
@@ -1663,49 +1666,81 @@ function AdminForm({ onClose, onCreated, existingSignal, onDeleted }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
-            <div>
-              <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>ENTRADA</label>
-              <input
-                value={precioEntrada}
-                onChange={(e) => setPrecioEntrada(e.target.value)}
-                inputMode="decimal"
-                className="w-full mt-1 rounded-xl px-3 py-3 text-sm font-mono outline-none"
-                style={inputStyle}
-              />
+          <div className="rounded-2xl p-3" style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.borderSoft}` }}>
+            <div className="text-[11px] tracking-widest font-semibold mb-2" style={{ color: C.textDim }}>
+              TRADE 1
             </div>
-            <div>
-              <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>SL</label>
-              <input
-                value={stopLoss}
-                onChange={(e) => setStopLoss(e.target.value)}
-                inputMode="decimal"
-                className="w-full mt-1 rounded-xl px-3 py-3 text-sm font-mono outline-none"
-                style={inputStyle}
-              />
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>ENTRADA</label>
+                <input
+                  value={precioEntrada}
+                  onChange={(e) => setPrecioEntrada(e.target.value)}
+                  inputMode="decimal"
+                  className="w-full mt-1 rounded-xl px-3 py-3 text-sm font-mono outline-none"
+                  style={inputStyle}
+                />
+              </div>
+              <div>
+                <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>SL</label>
+                <input
+                  value={stopLoss}
+                  onChange={(e) => setStopLoss(e.target.value)}
+                  inputMode="decimal"
+                  className="w-full mt-1 rounded-xl px-3 py-3 text-sm font-mono outline-none"
+                  style={inputStyle}
+                />
+              </div>
+              <div>
+                <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>TP</label>
+                <input
+                  value={takeProfit}
+                  onChange={(e) => setTakeProfit(e.target.value)}
+                  inputMode="decimal"
+                  className="w-full mt-1 rounded-xl px-3 py-3 text-sm font-mono outline-none"
+                  style={inputStyle}
+                />
+              </div>
             </div>
-            <div>
-              <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>TP</label>
-              <input
-                value={takeProfit}
-                onChange={(e) => setTakeProfit(e.target.value)}
-                inputMode="decimal"
-                className="w-full mt-1 rounded-xl px-3 py-3 text-sm font-mono outline-none"
-                style={inputStyle}
-              />
-            </div>
-          </div>
 
-          <div>
-            <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>TP2 (OPCIONAL)</label>
-            <input
-              value={takeProfit2}
-              onChange={(e) => setTakeProfit2(e.target.value)}
-              inputMode="decimal"
-              placeholder="Segundo objetivo, si tenés uno"
-              className="w-full mt-1 rounded-xl px-3 py-3 text-sm font-mono outline-none"
-              style={inputStyle}
-            />
+            <button
+              type="button"
+              onClick={() => setMostrarTP2((v) => !v)}
+              className="flex items-center gap-1 mt-2"
+            >
+              <span className="text-[12px] font-semibold" style={{ color: C.green }}>
+                {mostrarTP2 ? "Ocultar TP2" : "+ Agregar TP2 (opcional)"}
+              </span>
+              {mostrarTP2 ? <ChevronUp size={13} color={C.green} /> : <ChevronDown size={13} color={C.green} />}
+            </button>
+
+            {mostrarTP2 && (
+              <div className="mt-2">
+                <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>TP2</label>
+                <input
+                  value={takeProfit2}
+                  onChange={(e) => setTakeProfit2(e.target.value)}
+                  inputMode="decimal"
+                  placeholder="Segundo objetivo"
+                  className="w-full mt-1 rounded-xl px-3 py-3 text-sm font-mono outline-none"
+                  style={inputStyle}
+                />
+              </div>
+            )}
+
+            <div className="mt-2">
+              <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>RESULTADO</label>
+              <select
+                value={estado}
+                onChange={(e) => setEstado(e.target.value)}
+                className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none capitalize"
+                style={inputStyle}
+              >
+                {ESTADOS.filter((e2) => !(tipoOrden === "Market" && e2 === "pendiente")).map((e2) => (
+                  <option key={e2} value={e2}>{e2}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <button
@@ -1789,17 +1824,14 @@ function AdminForm({ onClose, onCreated, existingSignal, onDeleted }) {
             </div>
 
             <div>
-              <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>ESTADO</label>
-              <select
-                value={estado}
-                onChange={(e) => setEstado(e.target.value)}
-                className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none capitalize"
+              <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>FECHA Y HORA</label>
+              <input
+                type="datetime-local"
+                value={fechaCarga}
+                onChange={(e) => setFechaCarga(e.target.value)}
+                className="w-full mt-1 rounded-xl px-2 py-3 text-[13px] outline-none"
                 style={inputStyle}
-              >
-                {ESTADOS.filter((e2) => !(tipoOrden === "Market" && e2 === "pendiente")).map((e2) => (
-                  <option key={e2} value={e2}>{e2}</option>
-                ))}
-              </select>
+              />
             </div>
           </div>
 
@@ -1808,22 +1840,6 @@ function AdminForm({ onClose, onCreated, existingSignal, onDeleted }) {
               Distancia al SL: <span className="font-mono font-semibold" style={{ color: C.text }}>{pips}</span> pips (calculado automáticamente)
             </div>
           )}
-
-          <div>
-            <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>
-              FECHA Y HORA DE LA SEÑAL
-            </label>
-            <input
-              type="datetime-local"
-              value={fechaCarga}
-              onChange={(e) => setFechaCarga(e.target.value)}
-              className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
-              style={inputStyle}
-            />
-            <p className="text-[11px] mt-1" style={{ color: C.textDim }}>
-              Por defecto es ahora. Cambiala si querés cargar una señal con fecha pasada.
-            </p>
-          </div>
 
           <div>
             <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>TRADER QUE ENVÍA LA SEÑAL</label>
