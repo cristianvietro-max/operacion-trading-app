@@ -417,7 +417,10 @@ async function upsertPlanLink(planId, linkPago, accessToken) {
     },
     body: JSON.stringify({ plan_id: planId, link_pago: linkPago }),
   });
-  if (!res.ok) throw new Error("No se pudo guardar el link");
+  if (!res.ok) {
+    const detail = await res.json().catch(() => null);
+    throw new Error(detail?.message || detail?.hint || `No se pudo guardar el link (HTTP ${res.status})`);
+  }
   return res.json();
 }
 
@@ -4161,7 +4164,7 @@ function RachaDiaria({ signals }) {
   );
 }
 
-function InicioDashboard({ signals, isAdmin, onOpenSignal, onNuevaSenal, onNavigate, onDesbloquearPro, profile, onOpenBitacora }) {
+function InicioDashboard({ signals, isAdmin, onOpenSignal, onNuevaSenal, onNavigate, onDesbloquearPro, profile, onOpenBitacora, restringido }) {
   const ultimasSenales = (signals || []).slice(0, 2);
   const [novedades, setNovedades] = useState([]);
 
@@ -4188,8 +4191,20 @@ function InicioDashboard({ signals, isAdmin, onOpenSignal, onNuevaSenal, onNavig
 
   return (
     <div className="max-w-md mx-auto">
+      {restringido && (
+        <div
+          className="rounded-2xl px-4 py-3 mb-4 flex items-center gap-2"
+          style={{ backgroundColor: C.redSoft, border: `1px solid ${C.red}` }}
+        >
+          <Lock size={15} color={C.red} />
+          <span className="text-xs" style={{ color: C.text }}>
+            Tu plan venció. Por ahora solo podés usar tu <b>Bitácora</b> y renovar tu plan — el resto de la app queda bloqueado hasta que renueves.
+          </span>
+        </div>
+      )}
+
       {/* Últimas señales */}
-      <div className="mb-4">
+      <div className="mb-4" style={restringido ? { opacity: 0.35, pointerEvents: "none" } : undefined}>
         <div className="text-[11px] tracking-widest font-semibold mb-2" style={{ color: C.textDim }}>
           ÚLTIMAS SEÑALES
         </div>
@@ -4208,11 +4223,12 @@ function InicioDashboard({ signals, isAdmin, onOpenSignal, onNuevaSenal, onNavig
 
       {!profile?.vitalicio && (
         <button
-          onClick={onDesbloquearPro}
+          onClick={() => PRO_HABILITADO && onDesbloquearPro()}
+          disabled={!PRO_HABILITADO}
           className="w-full rounded-2xl py-3 mb-3 text-sm font-bold tracking-wide"
-          style={{ backgroundColor: "#F0B429", color: "#08090B" }}
+          style={{ backgroundColor: "#F0B429", color: "#08090B", opacity: PRO_HABILITADO ? 1 : 0.5 }}
         >
-          {profile?.pago ? "⚙️ MODIFICAR MI PLAN" : "🔓 DESBLOQUEAR PRO"}
+          {!PRO_HABILITADO ? "⏳ PRÓXIMAMENTE" : profile?.pago ? "⚙️ MODIFICAR MI PLAN" : "🔓 DESBLOQUEAR PRO"}
         </button>
       )}
 
@@ -4228,50 +4244,63 @@ function InicioDashboard({ signals, isAdmin, onOpenSignal, onNuevaSenal, onNavig
 
       {/* Fila principal: Señales / Broker / Bitácora */}
       <div className="grid grid-cols-3 gap-2 mb-3">
-        {mainButtons.map((b) => (
-          <button
-            key={b.label}
-            onClick={b.onClick}
-            className="rounded-2xl px-2 py-2.5 flex flex-col items-center gap-1"
-            style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
-          >
-            <b.icon size={17} color={C.green} />
-            <span className="text-[10.5px] font-semibold text-center uppercase" style={{ color: C.text }}>{b.label}</span>
-          </button>
-        ))}
+        {mainButtons.map((b) => {
+          const esBitacora = b.label === "Bitácora";
+          const bloqueado = restringido && !esBitacora;
+          return (
+            <button
+              key={b.label}
+              onClick={() => !bloqueado && b.onClick()}
+              disabled={bloqueado}
+              className="rounded-2xl px-2 py-2.5 flex flex-col items-center gap-1"
+              style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, opacity: bloqueado ? 0.35 : 1 }}
+            >
+              <b.icon size={17} color={bloqueado ? C.textDim : C.green} />
+              <span className="text-[10.5px] font-semibold text-center uppercase" style={{ color: C.text }}>{b.label}</span>
+            </button>
+          );
+        })}
       </div>
 
-      {/* Fila secundaria: Herramientas / Formación / Comunidad Operación Trading */}
-      <div className="grid grid-cols-3 gap-2 mb-2">
-        {subButtons.map((b) => (
-          <button
-            key={b.label}
-            onClick={b.onClick}
-            className="rounded-xl px-2 py-3 flex flex-col items-center gap-1"
-            style={{ backgroundColor: "transparent", border: `1px solid ${C.borderSoft}` }}
-          >
-            <b.icon size={15} color={C.textDim} />
-            <span className="text-[9px] text-center leading-tight uppercase" style={{ color: C.textDim }}>{b.label}</span>
-          </button>
-        ))}
-      </div>
+      <div style={restringido ? { opacity: 0.35, pointerEvents: "none" } : undefined}>
+        {/* Fila secundaria: Herramientas / Formación / Comunidad Operación Trading */}
+        <div className="grid grid-cols-3 gap-2 mb-2">
+          {subButtons.map((b) => (
+            <button
+              key={b.label}
+              onClick={b.onClick}
+              className="rounded-xl px-2 py-3 flex flex-col items-center gap-1"
+              style={{ backgroundColor: "transparent", border: `1px solid ${C.borderSoft}` }}
+            >
+              <b.icon size={15} color={C.textDim} />
+              <span className="text-[9px] text-center leading-tight uppercase" style={{ color: C.textDim }}>{b.label}</span>
+            </button>
+          ))}
+        </div>
 
-      <div className="grid grid-cols-3 gap-2 mb-4">
-        {MAS_SECTIONS.map((s) => (
-          <button
-            key={s.id}
-            onClick={() => onNavigate("mas", { masSection: s.id })}
-            className="rounded-xl px-2 py-3 flex flex-col items-center gap-1"
-            style={{
-              backgroundColor: C.cardAlt,
-              border: `1px solid ${C.border}`,
-              boxShadow: "0 4px 14px rgba(0,0,0,0.22)",
-            }}
-          >
-            <s.icon size={15} color={C.textDim} />
-            <span className="text-[9px] text-center leading-tight uppercase" style={{ color: C.textDim }}>{s.label}</span>
-          </button>
-        ))}
+        <div className="grid grid-cols-3 gap-2 mb-4">
+          {MAS_SECTIONS.map((s) => {
+            const bloqueado = s.id === "tienda" && !TIENDA_HABILITADA;
+          return (
+            <button
+              key={s.id}
+              onClick={() => !bloqueado && onNavigate("mas", { masSection: s.id })}
+              disabled={bloqueado}
+              className="rounded-xl px-2 py-3 flex flex-col items-center gap-1"
+              style={{
+                backgroundColor: C.cardAlt,
+                border: `1px solid ${C.border}`,
+                boxShadow: "0 4px 14px rgba(0,0,0,0.22)",
+                opacity: bloqueado ? 0.4 : 1,
+              }}
+            >
+              <s.icon size={15} color={C.textDim} />
+              <span className="text-[9px] text-center leading-tight uppercase" style={{ color: C.textDim }}>
+                {bloqueado ? "Próximamente" : s.label}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Próxima clase en vivo */}
@@ -4320,6 +4349,7 @@ function InicioDashboard({ signals, isAdmin, onOpenSignal, onNuevaSenal, onNavig
           (Solo para usuarios con membresía PRO)
         </span>
       </button>
+      </div>
     </div>
   );
 }
@@ -4359,6 +4389,10 @@ const TABS = [
   { id: "herramientas", label: "Herram.", icon: Wrench },
   { id: "mas", label: "Más", icon: Menu },
 ];
+
+// Apagados temporalmente hasta el lunes — poner en `true` para reactivarlos.
+const TIENDA_HABILITADA = false;
+const PRO_HABILITADO = false;
 
 const MAS_SECTIONS = [
   { id: "calendario-mas", label: "Calendario económico", icon: CalendarDays },
@@ -4421,15 +4455,19 @@ function MasMenu({ onSelect, onBack, isAdmin, pendingTotal }) {
       <div className="grid grid-cols-2 gap-3">
         {sections.map((s) => {
           const Icon = s.icon;
+          const bloqueado = s.id === "tienda" && !TIENDA_HABILITADA;
           return (
             <button
               key={s.id}
-              onClick={() => onSelect(s.id)}
+              onClick={() => !bloqueado && onSelect(s.id)}
+              disabled={bloqueado}
               className="relative h-28 rounded-2xl px-3 flex flex-col items-center justify-center gap-2 text-center"
-              style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
+              style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, opacity: bloqueado ? 0.4 : 1 }}
             >
-              <Icon size={20} color={C.green} />
-              <span className="font-medium text-[13px] leading-tight" style={{ color: C.text }}>{s.label}</span>
+              <Icon size={20} color={bloqueado ? C.textDim : C.green} />
+              <span className="font-medium text-[13px] leading-tight" style={{ color: C.text }}>
+                {bloqueado ? "Próximamente" : s.label}
+              </span>
               {s.badge > 0 && (
                 <span
                   className="absolute top-2 right-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full"
@@ -5584,7 +5622,7 @@ function HistorialComprobantesModal({ userId, accessToken, onClose }) {
   );
 }
 
-function NodeExplorer({ seccion, rootTitle, isAdmin, onBack, layout = "grid", fixedRootItems = [], nivelUsuario = 99 }) {
+function NodeExplorer({ seccion, rootTitle, isAdmin, onBack, layout = "grid", fixedRootItems = [], nivelUsuario = 99, onVerNiveles }) {
   const [path, setPath] = useState([{ id: null, titulo: rootTitle, nivelReq: null }]);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -5592,6 +5630,7 @@ function NodeExplorer({ seccion, rootTitle, isAdmin, onBack, layout = "grid", fi
   const [showForm, setShowForm] = useState(false);
   const [editingNode, setEditingNode] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  const [nivelBloqueado, setNivelBloqueado] = useState(null);
 
   const current = path[path.length - 1];
 
@@ -5633,7 +5672,7 @@ function NodeExplorer({ seccion, rootTitle, isAdmin, onBack, layout = "grid", fi
 
   const handleOpen = (node) => {
     if (estaBloqueado(node)) {
-      alert(`Necesitás el nivel "${labelNivel(nivelEfectivoDe(node))}" o superior para acceder a esto.`);
+      setNivelBloqueado(labelNivel(nivelEfectivoDe(node)));
       return;
     }
     if (node.tipo === "carpeta") {
@@ -5815,16 +5854,58 @@ function NodeExplorer({ seccion, rootTitle, isAdmin, onBack, layout = "grid", fi
           onCreated={load}
         />
       )}
+
+      {nivelBloqueado && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center p-6"
+          style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
+          onClick={() => setNivelBloqueado(null)}
+        >
+          <div
+            className="rounded-2xl p-5 w-full max-w-xs text-center"
+            style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3" style={{ backgroundColor: "rgba(240,180,41,0.14)" }}>
+              <Lock size={22} color="#F0B429" />
+            </div>
+            <p className="text-sm mb-4" style={{ color: C.text }}>
+              Necesitás el nivel <b>{nivelBloqueado}</b> o superior para acceder a esto.
+            </p>
+            <div className="flex flex-col gap-2">
+              {onVerNiveles && (
+                <button
+                  onClick={() => {
+                    setNivelBloqueado(null);
+                    onVerNiveles();
+                  }}
+                  className="w-full rounded-xl py-2.5 text-sm font-semibold"
+                  style={{ backgroundColor: C.green, color: "#08090B" }}
+                >
+                  Ver niveles
+                </button>
+              )}
+              <button
+                onClick={() => setNivelBloqueado(null)}
+                className="w-full rounded-xl py-2.5 text-sm font-medium"
+                style={{ backgroundColor: C.cardAlt, color: C.textDim }}
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function ClasesGrabadasView({ onBack, isAdmin, nivelUsuario }) {
-  return <NodeExplorer seccion="tutoriales" rootTitle="Tutoriales" isAdmin={isAdmin} onBack={onBack} layout="grid" nivelUsuario={nivelUsuario} />;
+function ClasesGrabadasView({ onBack, isAdmin, nivelUsuario, onVerNiveles }) {
+  return <NodeExplorer seccion="tutoriales" rootTitle="Tutoriales" isAdmin={isAdmin} onBack={onBack} layout="grid" nivelUsuario={nivelUsuario} onVerNiveles={onVerNiveles} />;
 }
 
-function BrokerView({ onBack, isAdmin, nivelUsuario }) {
-  return <NodeExplorer seccion="broker" rootTitle="Broker" isAdmin={isAdmin} onBack={onBack} layout="grid" nivelUsuario={nivelUsuario} />;
+function BrokerView({ onBack, isAdmin, nivelUsuario, onVerNiveles }) {
+  return <NodeExplorer seccion="broker" rootTitle="Broker" isAdmin={isAdmin} onBack={onBack} layout="grid" nivelUsuario={nivelUsuario} onVerNiveles={onVerNiveles} />;
 }
 
 function BonosView({ onBack }) {
@@ -7319,7 +7400,6 @@ export default function App() {
   const [session, setSession] = useState(null); // { accessToken, userId, profile }
   const [restoringSession, setRestoringSession] = useState(true);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
-  const [previewLocked, setPreviewLocked] = useState(false);
   const exitingRef = useRef(false);
   const popHandlerRef = useRef(null);
 
@@ -7563,16 +7643,6 @@ export default function App() {
     return <PendingApprovalView onLogout={handleLogout} />;
   }
   const vencidoBloqueante = !isAdmin && computeSubStatus(session.profile).label === "Vencida";
-  if (vencidoBloqueante && !previewLocked) {
-    return (
-      <SubscriptionExpiredView
-        userId={session.userId}
-        accessToken={session.accessToken}
-        onLogout={handleLogout}
-        onEnterPreview={() => setPreviewLocked(true)}
-      />
-    );
-  }
 
   const needsPersonalData =
     !isAdmin &&
@@ -7580,18 +7650,11 @@ export default function App() {
     (!session.profile.nombre?.trim() || !session.profile.telefono?.trim()) &&
     !personalDataDismissed;
 
-  const bloqueadoPorVencimiento = vencidoBloqueante && previewLocked;
-
   return (
     <>
     <div
       className="min-h-screen flex flex-col"
-      style={{
-        backgroundColor: C.bg,
-        ...(bloqueadoPorVencimiento
-          ? { filter: "grayscale(1) brightness(0.55)", pointerEvents: "none", userSelect: "none" }
-          : {}),
-      }}
+      style={{ backgroundColor: C.bg }}
     >
       <TopBar
         nombre={nombre}
@@ -7737,6 +7800,7 @@ export default function App() {
               signals={signals}
               isAdmin={isAdmin}
               profile={session.profile}
+              restringido={vencidoBloqueante}
               onOpenSignal={openSignal}
               onNuevaSenal={() => setShowAdminForm(true)}
               onDesbloquearPro={() => setSpecialView("planes")}
@@ -7750,11 +7814,11 @@ export default function App() {
           )}
 
           {tab === "broker" && (
-            <BrokerView onBack={goHome} isAdmin={isAdmin} nivelUsuario={nivelEfectivoUsuario(session.profile)} />
+            <BrokerView onBack={goHome} isAdmin={isAdmin} nivelUsuario={nivelEfectivoUsuario(session.profile)} onVerNiveles={() => setSpecialView("planes")} />
           )}
 
           {tab === "herramientas" && (
-            <NodeExplorer seccion="herramientas" rootTitle="Herramientas" isAdmin={isAdmin} onBack={goHome} layout="grid" nivelUsuario={nivelEfectivoUsuario(session.profile)} />
+            <NodeExplorer seccion="herramientas" rootTitle="Herramientas" isAdmin={isAdmin} onBack={goHome} layout="grid" nivelUsuario={nivelEfectivoUsuario(session.profile)} onVerNiveles={() => setSpecialView("planes")} />
           )}
 
           {tab === "automatizaciones" && (
@@ -7765,6 +7829,7 @@ export default function App() {
               onBack={goHome}
               layout="grid"
               nivelUsuario={nivelEfectivoUsuario(session.profile)}
+              onVerNiveles={() => setSpecialView("planes")}
             />
           )}
 
@@ -7824,7 +7889,7 @@ export default function App() {
           )}
 
           {tab === "mas" && masSection === "formacion" && (
-            <ClasesGrabadasView onBack={goHome} isAdmin={isAdmin} nivelUsuario={nivelEfectivoUsuario(session.profile)} />
+            <ClasesGrabadasView onBack={goHome} isAdmin={isAdmin} nivelUsuario={nivelEfectivoUsuario(session.profile)} onVerNiveles={() => setSpecialView("planes")} />
           )}
 
           {tab === "mas" && masSection === "comunidad" && comunidadView === null && (
@@ -7835,6 +7900,7 @@ export default function App() {
               onBack={goHome}
               layout="grid"
               nivelUsuario={nivelEfectivoUsuario(session.profile)}
+              onVerNiveles={() => setSpecialView("planes")}
               fixedRootItems={[
                 { titulo: "Discord y traders", icon: MessageCircle, onClick: () => setComunidadView("discord") },
                 { titulo: "Noticias internas", icon: Bell, onClick: () => setComunidadView("noticias-internas") },
@@ -7849,7 +7915,7 @@ export default function App() {
           )}
 
           {tab === "mas" && masSection === "tienda" && (
-            <NodeExplorer seccion="tienda" rootTitle="Tienda" isAdmin={isAdmin} onBack={goHome} layout="grid" nivelUsuario={nivelEfectivoUsuario(session.profile)} />
+            <NodeExplorer seccion="tienda" rootTitle="Tienda" isAdmin={isAdmin} onBack={goHome} layout="grid" nivelUsuario={nivelEfectivoUsuario(session.profile)} onVerNiveles={() => setSpecialView("planes")} />
           )}
 
           {tab === "mas" && masSection === "calendario-mas" && (
@@ -8079,23 +8145,6 @@ export default function App() {
         })}
       </div>
     </div>
-    {bloqueadoPorVencimiento && (
-      <div
-        className="fixed bottom-0 left-0 right-0 z-[200] px-5 py-4 flex flex-col items-center gap-3"
-        style={{ backgroundColor: C.card, borderTop: `1px solid ${C.border}` }}
-      >
-        <p className="text-sm text-center font-medium" style={{ color: C.text }}>
-          ⏳ Tu cuenta está pendiente de aprobación. Podés mirar la app, pero no vas a poder usarla hasta que un admin confirme tu pago.
-        </p>
-        <button
-          onClick={() => setPreviewLocked(false)}
-          className="w-full max-w-xs rounded-2xl py-3 text-sm font-semibold"
-          style={{ backgroundColor: C.green, color: "#08090B" }}
-        >
-          Volver
-        </button>
-      </div>
-    )}
     </>
   );
 }
