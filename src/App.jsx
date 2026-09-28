@@ -376,7 +376,7 @@ async function uploadPaymentProof(file) {
   return `${SUPABASE_URL}/storage/v1/object/public/comprobantes-pago/${filename}`;
 }
 
-async function createComprobante(userId, imagenUrl, planMeses, planId, tipoOperacion) {
+async function createComprobante(userId, imagenUrl, planMeses, planId, tipoOperacion, metodoPago) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/comprobantes_pago`, {
     method: "POST",
     headers: {
@@ -392,6 +392,7 @@ async function createComprobante(userId, imagenUrl, planMeses, planId, tipoOpera
       plan_meses: planMeses || null,
       plan_id: planId || null,
       tipo_operacion: tipoOperacion || null,
+      metodo_pago: metodoPago || null,
     }),
   });
   if (!res.ok) throw new Error("No se pudo registrar el comprobante");
@@ -406,7 +407,7 @@ async function fetchPlanesLinks() {
   return res.json();
 }
 
-async function upsertPlanLink(planId, linkPago, accessToken) {
+async function upsertPlanLink(planId, linkArs, linkUsd, accessToken) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/planes_links`, {
     method: "POST",
     headers: {
@@ -415,7 +416,7 @@ async function upsertPlanLink(planId, linkPago, accessToken) {
       "Content-Type": "application/json",
       Prefer: "resolution=merge-duplicates,return=representation",
     },
-    body: JSON.stringify({ plan_id: planId, link_pago: linkPago }),
+    body: JSON.stringify({ plan_id: planId, link_ars: linkArs || null, link_usd: linkUsd || null }),
   });
   if (!res.ok) {
     const detail = await res.json().catch(() => null);
@@ -798,6 +799,37 @@ function saveSessionToStorage(accessToken, refreshToken, userId) {
   }
 }
 
+const NOTIF_PREFS_KEY = "op_notif_prefs";
+
+// Ejecuta `cb` cuando el SDK de OneSignal (cargado en index.html) está listo.
+function withOneSignal(cb) {
+  try {
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    window.OneSignalDeferred.push(async (OneSignal) => {
+      try {
+        await cb(OneSignal);
+      } catch (err) {
+        // las notificaciones nunca deben romper la app
+      }
+    });
+  } catch (err) {}
+}
+
+function loadNotifPrefs() {
+  const base = { senales: true, novedades: true };
+  try {
+    return { ...base, ...JSON.parse(localStorage.getItem(NOTIF_PREFS_KEY) || "{}") };
+  } catch (err) {
+    return base;
+  }
+}
+
+function saveNotifPrefs(prefs) {
+  try {
+    localStorage.setItem(NOTIF_PREFS_KEY, JSON.stringify(prefs));
+  } catch (err) {}
+}
+
 function loadSessionFromStorage() {
   try {
     return JSON.parse(localStorage.getItem("op_trader_session") || "null");
@@ -1021,6 +1053,76 @@ const ESTADO_STYLES = {
   descartada: { label: "Descartada", color: C.grey },
 };
 
+const ESTADOS_ABIERTOS = ["pendiente", "activa"];
+const ESTADOS_CERRADOS = ["ganada", "perdida", "be", "descartada"];
+
+// Estado "general" de la señal. Si tiene 2 trades, espera a que cierren los dos:
+// mientras uno siga corriendo la señal figura como activa/pendiente, y si cierran
+// con resultados distintos devuelve `split` para mostrar la caja mitad y mitad.
+function estadoGeneral(signal) {
+  const s1 = signal.estado;
+  const s2 = signal.entradaOp2 != null ? signal.estadoOp2 : null;
+  if (!s2) return { estado: s1, split: null };
+  const a1 = ESTADOS_ABIERTOS.includes(s1);
+  const a2 = ESTADOS_ABIERTOS.includes(s2);
+  if (a1 || a2) {
+    return { estado: s1 === "activa" || s2 === "activa" ? "activa" : "pendiente", split: null };
+  }
+  if (s1 === s2) return { estado: s1, split: null };
+  return { estado: s1, split: [s1, s2] };
+}
+
+function colorBordeEstado(est) {
+  if (est === "pendiente") return "#F0B429";
+  if (est === "ganada") return C.green;
+  if (est === "perdida") return C.red;
+  if (est === "be") return "#FFFFFF";
+  if (est === "descartada") return C.grey;
+  return C.border;
+}
+
+function PuntoAbierto({ size, color }) {
+  const d = Math.round(size * 0.6);
+  return (
+    <span
+      className="animate-pulse"
+      style={{ display: "inline-block", width: d, height: d, borderRadius: "50%", backgroundColor: color }}
+    />
+  );
+}
+
+function EstadoBadge({ est, big, iconOnly }) {
+  const info = ESTADO_STYLES[est] || { label: est, color: C.textDim };
+  const iconSize = big ? 15 : 14;
+  const pillCls = big ? "flex items-center gap-1.5 px-2.5 py-1 rounded-full" : "flex items-center gap-1 px-2 py-0.5 rounded-full";
+  const txtCls = big ? "font-semibold text-[15px] uppercase" : "font-semibold text-[13px] uppercase";
+  if (est === "ganada") {
+    return (
+      <div className={pillCls} style={{ backgroundColor: C.greenSoft, boxShadow: `0 0 0 1px ${C.green}55` }}>
+        <ThumbsUp size={iconSize} color={C.green} />
+        {!iconOnly && <span className={txtCls} style={{ color: C.green }}>Ganada</span>}
+      </div>
+    );
+  }
+  if (est === "perdida") {
+    return (
+      <div className={pillCls} style={{ backgroundColor: C.redSoft, boxShadow: `0 0 0 1px ${C.red}55` }}>
+        <ThumbsDown size={iconSize} color={C.red} />
+        {!iconOnly && <span className={txtCls} style={{ color: C.red }}>Perdida</span>}
+      </div>
+    );
+  }
+  if (est === "be") {
+    return (
+      <div className={pillCls} style={{ backgroundColor: C.cardAlt, boxShadow: "0 0 0 1px #FFFFFF55" }}>
+        <Dices size={iconSize} color="#FFFFFF" />
+        {!iconOnly && <span className={txtCls} style={{ color: "#FFFFFF" }}>BE</span>}
+      </div>
+    );
+  }
+  return <span className={big ? "text-xs" : "text-[10px] font-medium"} style={{ color: info.color }}>{info.label}</span>;
+}
+
 const FILTERS = ["Todas", "Activas", "Cerradas", "EUR/USD", "GBP/USD", "XAU/USD"];
 
 const AVATAR_FEDE = "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";
@@ -1053,14 +1155,21 @@ const TUTORIALES = [
 ];
 
 function computeStats(signals) {
-  const closed = signals.filter((s) => s.estado === "ganada" || s.estado === "perdida");
-  const wins = closed.filter((s) => s.estado === "ganada");
-  const winRate = closed.length ? Math.round((wins.length / closed.length) * 100) : 0;
+  // Cada trade cuenta por separado: una señal con Trade 2 aporta dos resultados.
+  const trades = [];
+  signals.forEach((s) => {
+    if (s.estado === "ganada" || s.estado === "perdida") {
+      trades.push({ ganada: s.estado === "ganada", pips: Number(s.pips) || 0 });
+    }
+    if (s.entradaOp2 != null && s.slOp2 != null && (s.estadoOp2 === "ganada" || s.estadoOp2 === "perdida")) {
+      trades.push({ ganada: s.estadoOp2 === "ganada", pips: calcPips(s.par, s.entradaOp2, s.slOp2) || 0 });
+    }
+  });
+  const wins = trades.filter((t) => t.ganada);
+  const winRate = trades.length ? Math.round((wins.length / trades.length) * 100) : 0;
   const rrProm = 2;
-  const neto = closed.length
-    ? closed.reduce((acc, s) => acc + (s.estado === "ganada" ? s.pips : -s.pips), 0)
-    : 0;
-  return { winRate, rrProm, neto };
+  const neto = trades.reduce((acc, t) => acc + (t.ganada ? t.pips : -t.pips), 0);
+  return { winRate, rrProm, neto: Math.round(neto * 10) / 10 };
 }
 
 function CopyField({ label, value, formatted, color }) {
@@ -1089,22 +1198,33 @@ function CopyField({ label, value, formatted, color }) {
 }
 
 function SignalCard({ signal, onOpen, compact }) {
-  const estado = ESTADO_STYLES[signal.estado];
-  const borderColor =
-    signal.estado === "pendiente" ? "#F0B429" :
-    signal.estado === "ganada" ? C.green :
-    signal.estado === "perdida" ? C.red :
-    signal.estado === "be" ? "#FFFFFF" :
-    signal.estado === "descartada" ? C.grey :
-    C.border;
-  const isClosed = ["ganada", "perdida", "be", "descartada"].includes(signal.estado);
+  const eg = estadoGeneral(signal);
+  const est = eg.estado;
+  const borderColor = colorBordeEstado(est);
+  const isClosed = ESTADOS_CERRADOS.includes(est);
+  const cardBorder = eg.split
+    ? {
+        border: "1px solid transparent",
+        background: `linear-gradient(${C.card}, ${C.card}) padding-box, linear-gradient(90deg, ${colorBordeEstado(eg.split[0])} 50%, ${colorBordeEstado(eg.split[1])} 50%) border-box`,
+      }
+    : { backgroundColor: C.card, border: `1px solid ${borderColor}` };
+
+  const badges = eg.split ? (
+    <div className="flex items-center gap-1">
+      {eg.split.map((e, i) => (
+        <EstadoBadge key={i} est={e} big={!compact} iconOnly />
+      ))}
+    </div>
+  ) : (
+    <EstadoBadge est={est} big={!compact} />
+  );
 
   if (compact) {
     return (
       <button
         onClick={() => onOpen(signal)}
         className="text-left rounded-2xl overflow-hidden transition-shadow"
-        style={{ backgroundColor: C.card, border: `1px solid ${borderColor}`, opacity: isClosed ? 0.72 : 1 }}
+        style={{ ...cardBorder, opacity: isClosed ? 0.72 : 1 }}
       >
         <div className="px-3 pt-2.5 pb-2" style={{ backgroundColor: C.cardAlt, borderBottom: `1px solid ${C.borderSoft}` }}>
           <div className="flex items-center justify-between mb-1.5">
@@ -1116,38 +1236,7 @@ function SignalCard({ signal, onOpen, compact }) {
               {signal.direccion === "venta" ? "VENTA" : "COMPRA"}
             </span>
           </div>
-          <div className="flex items-center">
-            {signal.estado === "ganada" && (
-              <div
-                className="flex items-center gap-1 px-2 py-0.5 rounded-full"
-                style={{ backgroundColor: C.greenSoft, boxShadow: `0 0 0 1px ${C.green}55` }}
-              >
-                <ThumbsUp size={14} color={C.green} />
-                <span className="font-semibold text-[13px] uppercase" style={{ color: C.green }}>Ganada</span>
-              </div>
-            )}
-            {signal.estado === "perdida" && (
-              <div
-                className="flex items-center gap-1 px-2 py-0.5 rounded-full"
-                style={{ backgroundColor: C.redSoft, boxShadow: `0 0 0 1px ${C.red}55` }}
-              >
-                <ThumbsDown size={14} color={C.red} />
-                <span className="font-semibold text-[13px] uppercase" style={{ color: C.red }}>Perdida</span>
-              </div>
-            )}
-            {signal.estado === "be" && (
-              <div
-                className="flex items-center gap-1 px-2 py-0.5 rounded-full"
-                style={{ backgroundColor: C.cardAlt, boxShadow: `0 0 0 1px #FFFFFF55` }}
-              >
-                <Dices size={14} color="#FFFFFF" />
-                <span className="font-semibold text-[13px] uppercase" style={{ color: "#FFFFFF" }}>BE</span>
-              </div>
-            )}
-            {signal.estado !== "ganada" && signal.estado !== "perdida" && signal.estado !== "be" && (
-              <span className="text-[10px] font-medium" style={{ color: isClosed ? C.textDim : estado.color }}>{estado.label}</span>
-            )}
-          </div>
+          <div className="flex items-center">{badges}</div>
         </div>
         <div className="px-2 pt-2" style={{ filter: isClosed ? "grayscale(1)" : "none" }}>
           <ChartImage imagenUrl={signal.imagenUrl} height={72} />
@@ -1164,7 +1253,7 @@ function SignalCard({ signal, onOpen, compact }) {
     <button
       onClick={() => onOpen(signal)}
       className="w-full text-left rounded-2xl overflow-hidden transition-shadow"
-      style={{ backgroundColor: C.card, border: `1px solid ${borderColor}` }}
+      style={cardBorder}
     >
       <div className="px-5 py-3 flex items-center justify-between" style={{ backgroundColor: C.cardAlt, borderBottom: `1px solid ${C.borderSoft}` }}>
         <div>
@@ -1177,38 +1266,7 @@ function SignalCard({ signal, onOpen, compact }) {
           <div className="text-[13px] font-semibold" style={{ color: signal.direccion === "venta" ? C.red : C.green }}>
             {signal.direccion === "venta" ? "VENTA" : "COMPRA"}
           </div>
-          <div className="mt-0.5 flex items-center justify-end">
-            {signal.estado === "ganada" && (
-              <div
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full"
-                style={{ backgroundColor: C.greenSoft, boxShadow: `0 0 0 1px ${C.green}55` }}
-              >
-                <ThumbsUp size={15} color={C.green} />
-                <span className="font-semibold text-[15px] uppercase" style={{ color: C.green }}>Ganada</span>
-              </div>
-            )}
-            {signal.estado === "perdida" && (
-              <div
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full"
-                style={{ backgroundColor: C.redSoft, boxShadow: `0 0 0 1px ${C.red}55` }}
-              >
-                <ThumbsDown size={15} color={C.red} />
-                <span className="font-semibold text-[15px] uppercase" style={{ color: C.red }}>Perdida</span>
-              </div>
-            )}
-            {signal.estado === "be" && (
-              <div
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full"
-                style={{ backgroundColor: C.cardAlt, boxShadow: `0 0 0 1px #FFFFFF55` }}
-              >
-                <Dices size={15} color="#FFFFFF" />
-                <span className="font-semibold text-[15px] uppercase" style={{ color: "#FFFFFF" }}>BE</span>
-              </div>
-            )}
-            {signal.estado !== "ganada" && signal.estado !== "perdida" && signal.estado !== "be" && (
-              <span className="text-xs" style={{ color: estado.color }}>{estado.label}</span>
-            )}
-          </div>
+          <div className="mt-0.5 flex items-center justify-end">{badges}</div>
         </div>
       </div>
       <div className="px-2 pt-2 pb-1" style={{ backgroundColor: C.card }}>
@@ -1445,10 +1503,27 @@ function DetailView({ signal, onBack, risk, onEdit, isAdmin }) {
       </div>
       <div className="flex items-center justify-between mb-5">
         <span className="text-sm" style={{ color: C.textDim }}>{signal.fecha} · {signal.autor}</span>
-        <span className="text-sm font-semibold flex items-center gap-1" style={{ color: estadoInfo.color }}>
-          {signal.estado === "be" && <Dices size={14} color="#FFFFFF" />}
-          {estadoInfo.label}
-        </span>
+        {(() => {
+          const eg = estadoGeneral(signal);
+          if (eg.split) {
+            return (
+              <span className="text-sm font-semibold flex items-center gap-1.5">
+                {eg.split.map((e, i) => (
+                  <span key={i} style={{ color: ESTADO_STYLES[e]?.color }}>
+                    {ESTADO_STYLES[e]?.label}{i === 0 ? " ·" : ""}
+                  </span>
+                ))}
+              </span>
+            );
+          }
+          const infoG = ESTADO_STYLES[eg.estado] || estadoInfo;
+          return (
+            <span className="text-sm font-semibold flex items-center gap-1" style={{ color: infoG.color }}>
+              {eg.estado === "be" && <Dices size={14} color="#FFFFFF" />}
+              {infoG.label}
+            </span>
+          );
+        })()}
       </div>
 
       <div className="rounded-2xl p-3 mb-5" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
@@ -3092,7 +3167,7 @@ function LoginView({ onLogin, onSignup }) {
   );
 }
 
-function PaymentProofForm({ userId, initialMeses, fixedPlanId, tipoOperacion, onClose, onSent }) {
+function PaymentProofForm({ userId, initialMeses, fixedPlanId, tipoOperacion, metodoPago, onClose, onSent }) {
   const [file, setFile] = useState(null);
   const [planMeses, setPlanMeses] = useState(initialMeses || null);
   const [submitting, setSubmitting] = useState(false);
@@ -3105,7 +3180,7 @@ function PaymentProofForm({ userId, initialMeses, fixedPlanId, tipoOperacion, on
     setError(null);
     try {
       const url = await uploadPaymentProof(file);
-      await createComprobante(userId, url, planMeses, fixedPlanId || null, tipoOperacion || null);
+      await createComprobante(userId, url, planMeses, fixedPlanId || null, tipoOperacion || null, metodoPago || null);
       onSent();
     } catch (err) {
       setError(err.message || "No se pudo enviar el comprobante");
@@ -3825,6 +3900,7 @@ function PlanFicha({ plan }) {
 function PlanesProView({ onBack, userId, accessToken, profile }) {
   const [selected, setSelected] = useState(null);
   const [checkoutAbierto, setCheckoutAbierto] = useState(false);
+  const [metodoPago, setMetodoPago] = useState(null);
   const [showProof, setShowProof] = useState(false);
   const [enviado, setEnviado] = useState(false);
   const [links, setLinks] = useState([]);
@@ -3834,7 +3910,9 @@ function PlanesProView({ onBack, userId, accessToken, profile }) {
   }, []);
 
   const planSel = PLANES_PRO.find((p) => p.id === selected);
-  const linkPago = links.find((l) => l.plan_id === selected)?.link_pago || null;
+  const filaLinks = links.find((l) => l.plan_id === selected);
+  const linkArs = filaLinks?.link_ars || null;
+  const linkUsd = filaLinks?.link_usd || filaLinks?.link_pago || null;
 
   const tipoOperacion = !profile?.nivel_contenido || profile.nivel_contenido === "prueba"
     ? "compra"
@@ -3842,9 +3920,11 @@ function PlanesProView({ onBack, userId, accessToken, profile }) {
     ? "renovacion"
     : "cambio_plan";
 
-  const abrirCheckout = () => {
+  const abrirCheckout = (metodo) => {
+    setMetodoPago(metodo);
     setCheckoutAbierto(true);
-    if (linkPago) window.open(linkPago, "_blank", "noopener,noreferrer");
+    const link = metodo === "ars" ? linkArs : linkUsd;
+    if (link) window.open(link, "_blank", "noopener,noreferrer");
   };
 
   if (enviado) {
@@ -3889,6 +3969,7 @@ function PlanesProView({ onBack, userId, accessToken, profile }) {
             onClick={() => {
               setSelected(p.id);
               setCheckoutAbierto(false);
+              setMetodoPago(null);
             }}
             className="relative rounded-2xl px-5 py-4 text-left cursor-pointer"
             style={{
@@ -3965,17 +4046,37 @@ function PlanesProView({ onBack, userId, accessToken, profile }) {
             completar la activación de tu plan.
           </div>
 
+          <div className="text-[11px] tracking-wide font-medium mb-2 text-center" style={{ color: C.textDim }}>
+            ELEGÍ CÓMO QUERÉS PAGAR
+          </div>
+
           <button
-            onClick={abrirCheckout}
+            onClick={() => abrirCheckout("ars")}
             className="w-full rounded-2xl py-3.5 text-sm font-semibold mb-2"
-            style={{ backgroundColor: C.green, color: "#08090B" }}
+            style={{
+              backgroundColor: metodoPago === "ars" ? C.green : C.cardAlt,
+              color: metodoPago === "ars" ? "#08090B" : C.text,
+              border: `1px solid ${C.green}`,
+            }}
           >
-            Ir al checkout y realizar el pago
+            🇦🇷 Pagar en pesos argentinos (Tiendup)
           </button>
 
-          {!linkPago && (
+          <button
+            onClick={() => abrirCheckout("usd")}
+            className="w-full rounded-2xl py-3.5 text-sm font-semibold mb-2"
+            style={{
+              backgroundColor: metodoPago === "usd" ? C.green : C.cardAlt,
+              color: metodoPago === "usd" ? "#08090B" : C.text,
+              border: `1px solid ${C.green}`,
+            }}
+          >
+            💵 Pagar en USD / USDT (Hotmart)
+          </button>
+
+          {((metodoPago === "ars" && !linkArs) || (metodoPago === "usd" && !linkUsd)) && (
             <p className="text-[11px] text-center mb-2" style={{ color: C.textDim }}>
-              (Todavía no se cargó el link de pago de este plan — igual podés avanzar y subir tu comprobante)
+              (Todavía no se cargó ese link de pago — igual podés avanzar y subir tu comprobante)
             </p>
           )}
 
@@ -3997,6 +4098,7 @@ function PlanesProView({ onBack, userId, accessToken, profile }) {
           fixedPlanId={selected}
           initialMeses={planSel?.meses}
           tipoOperacion={tipoOperacion}
+          metodoPago={metodoPago}
           onClose={() => setShowProof(false)}
           onSent={() => {
             setShowProof(false);
@@ -4029,7 +4131,9 @@ function RachaDiaria({ signals }) {
     return signals
       .filter((s) => {
         if (!s.createdAt) return false;
-        if (!["ganada", "perdida", "be", "descartada"].includes(s.estado)) return false;
+        const cerrado1 = ESTADOS_CERRADOS.includes(s.estado);
+        const cerrado2 = s.entradaOp2 != null && ESTADOS_CERRADOS.includes(s.estadoOp2);
+        if (!cerrado1 && !cerrado2) return false;
         const f = new Date(s.createdAt);
         return f >= dia && f < siguiente;
       })
@@ -4107,6 +4211,8 @@ function RachaDiaria({ signals }) {
                     if (est === "ganada") return { Icon: Check, color: C.green };
                     if (est === "be") return { Icon: Dices, color: "#FFFFFF" };
                     if (est === "descartada") return { Icon: Ban, color: C.textDim };
+                    if (est === "activa") return { Icon: PuntoAbierto, color: C.blue };
+                    if (est === "pendiente") return { Icon: PuntoAbierto, color: "#F0B429" };
                     return { Icon: X, color: C.red };
                   };
                   return (
@@ -4154,6 +4260,10 @@ function RachaDiaria({ signals }) {
         <div className="flex items-center gap-1">
           <Ban size={11} color={C.textDim} strokeWidth={2.5} />
           <span className="text-[10px]" style={{ color: C.textDim }}>Descartada</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <PuntoAbierto size={11} color={C.blue} />
+          <span className="text-[10px]" style={{ color: C.textDim }}>En curso</span>
         </div>
         <div className="flex items-center gap-1">
           <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: C.border }} />
@@ -4391,8 +4501,8 @@ const TABS = [
 ];
 
 // Apagados temporalmente hasta el lunes — poner en `true` para reactivarlos.
-const TIENDA_HABILITADA = false;
-const PRO_HABILITADO = false;
+const TIENDA_HABILITADA = true;
+const PRO_HABILITADO = true;
 
 const MAS_SECTIONS = [
   { id: "calendario-mas", label: "Calendario económico", icon: CalendarDays },
@@ -4773,7 +4883,7 @@ function UsuariosView({ onBack, accessToken, onApproved, adminNombre }) {
       .then((rows) => {
         const map = {};
         rows.forEach((r) => {
-          map[r.plan_id] = r.link_pago;
+          map[r.plan_id] = { ars: r.link_ars || "", usd: r.link_usd || r.link_pago || "" };
         });
         setPlanesLinksState(map);
       })
@@ -4784,7 +4894,7 @@ function UsuariosView({ onBack, accessToken, onApproved, adminNombre }) {
     setSavingLinks(true);
     setActionError(null);
     try {
-      await Promise.all(PLANES_PRO.map((p) => upsertPlanLink(p.id, planesLinksState[p.id] || "", accessToken)));
+      await Promise.all(PLANES_PRO.map((p) => upsertPlanLink(p.id, planesLinksState[p.id]?.ars || "", planesLinksState[p.id]?.usd || "", accessToken)));
     } catch (err) {
       setActionError(err.message || "No se pudieron guardar los links de pago");
     } finally {
@@ -5008,12 +5118,21 @@ function UsuariosView({ onBack, accessToken, onApproved, adminNombre }) {
       {showLinks && (
         <div className="rounded-2xl p-4 mb-4" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
           {PLANES_PRO.map((p) => (
-            <div key={p.id} className="mb-3">
-              <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>{p.label}</label>
+            <div key={p.id} className="mb-4">
+              <div className="text-[12px] font-bold mb-1" style={{ color: C.text }}>{p.label}</div>
+              <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>PESOS ARG (TIENDUP)</label>
               <input
-                value={planesLinksState[p.id] || ""}
-                onChange={(e) => setPlanesLinksState((s) => ({ ...s, [p.id]: e.target.value }))}
-                placeholder="https://tu-pasarela-de-pago.com/..."
+                value={planesLinksState[p.id]?.ars || ""}
+                onChange={(e) => setPlanesLinksState((s) => ({ ...s, [p.id]: { ...s[p.id], ars: e.target.value } }))}
+                placeholder="https://tiendup.com/..."
+                className="w-full mt-1 mb-2 rounded-xl px-3 py-2.5 text-sm outline-none"
+                style={{ backgroundColor: C.cardAlt, color: C.text, border: `1px solid ${C.border}` }}
+              />
+              <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>USD / USDT (HOTMART)</label>
+              <input
+                value={planesLinksState[p.id]?.usd || ""}
+                onChange={(e) => setPlanesLinksState((s) => ({ ...s, [p.id]: { ...s[p.id], usd: e.target.value } }))}
+                placeholder="https://pay.hotmart.com/..."
                 className="w-full mt-1 rounded-xl px-3 py-2.5 text-sm outline-none"
                 style={{ backgroundColor: C.cardAlt, color: C.text, border: `1px solid ${C.border}` }}
               />
@@ -5096,7 +5215,12 @@ function UsuariosView({ onBack, accessToken, onApproved, adminNombre }) {
                       {tipoOpLabel && <> · {tipoOpLabel}</>}
                     </div>
                     {fechaSolicitud && (
-                      <div className="text-[11px] mb-2" style={{ color: C.textDim }}>Solicitado: {fechaSolicitud}</div>
+                      <div className="text-[11px] mb-1" style={{ color: C.textDim }}>Solicitado: {fechaSolicitud}</div>
+                    )}
+                    {c.metodo_pago && (
+                      <div className="text-[11px] mb-2" style={{ color: C.textDim }}>
+                        Método de pago: <span style={{ color: C.text }}>{c.metodo_pago === "ars" ? "Pesos ARG (Tiendup)" : "USD / USDT (Hotmart)"}</span>
+                      </div>
                     )}
                     {c.plan_meses && (
                       <div className="text-xs mb-3 font-medium" style={{ color: C.green }}>
@@ -5222,6 +5346,113 @@ function UsuariosView({ onBack, accessToken, onApproved, adminNombre }) {
         >
           <img src={viewingImage} alt="Comprobante ampliado" className="max-w-full max-h-full rounded-xl" />
         </div>
+      )}
+    </div>
+  );
+}
+
+function NotificacionesSettings() {
+  const [permiso, setPermiso] = useState(null); // null = cargando, true/false
+  const [bloqueado, setBloqueado] = useState(false);
+  const [prefs, setPrefs] = useState(loadNotifPrefs());
+  const esIOS = typeof navigator !== "undefined" && /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const instalada =
+    typeof window !== "undefined" &&
+    (window.navigator.standalone === true || (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches));
+  const iosSinInstalar = esIOS && !instalada;
+
+  React.useEffect(() => {
+    withOneSignal(async (OneSignal) => {
+      setPermiso(!!OneSignal.Notifications.permission);
+      setBloqueado(typeof Notification !== "undefined" && Notification.permission === "denied");
+      OneSignal.Notifications.addEventListener("permissionChange", (granted) => setPermiso(!!granted));
+    });
+    const t = setTimeout(() => setPermiso((p) => (p === null ? false : p)), 4000);
+    return () => clearTimeout(t);
+  }, []);
+
+  const activar = () => {
+    withOneSignal(async (OneSignal) => {
+      await OneSignal.Notifications.requestPermission();
+      setPermiso(!!OneSignal.Notifications.permission);
+      setBloqueado(typeof Notification !== "undefined" && Notification.permission === "denied");
+    });
+  };
+
+  const cambiar = (key) => {
+    const next = { ...prefs, [key]: !prefs[key] };
+    setPrefs(next);
+    saveNotifPrefs(next);
+    withOneSignal(async (OneSignal) => {
+      OneSignal.User.addTag(key, next[key] ? "1" : "0");
+    });
+  };
+
+  const opciones = [
+    { key: "senales", label: "Señales", desc: "Nueva señal, cambios y cierres" },
+    { key: "novedades", label: "Novedades y clases en vivo", desc: "Novedades, flyers y próximas clases" },
+  ];
+
+  return (
+    <div className="rounded-2xl px-5 py-4 mb-4" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
+      <div className="flex items-center gap-2 mb-3">
+        <Bell size={15} color={C.green} />
+        <span className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>NOTIFICACIONES</span>
+      </div>
+
+      {iosSinInstalar && (
+        <p className="text-xs mb-3" style={{ color: C.warningText }}>
+          En iPhone las notificaciones solo funcionan si agregás la app a la pantalla de inicio (Safari → Compartir → Agregar a pantalla de inicio) y la abrís desde ahí.
+        </p>
+      )}
+
+      {permiso ? (
+        <>
+          <p className="text-xs mb-3" style={{ color: C.green }}>✓ Notificaciones activadas en este dispositivo</p>
+          {opciones.map((o) => (
+            <button
+              key={o.key}
+              onClick={() => cambiar(o.key)}
+              className="w-full flex items-center justify-between rounded-xl px-4 py-3 mb-2 text-left"
+              style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.border}` }}
+            >
+              <div className="pr-3">
+                <div className="text-sm font-medium" style={{ color: C.text }}>{o.label}</div>
+                <div className="text-[11px]" style={{ color: C.textDim }}>{o.desc}</div>
+              </div>
+              <div
+                className="w-10 h-6 rounded-full relative shrink-0"
+                style={{ backgroundColor: prefs[o.key] ? C.green : C.border }}
+              >
+                <div
+                  className="absolute top-0.5 w-5 h-5 rounded-full bg-white"
+                  style={{ left: prefs[o.key] ? 18 : 2, transition: "left 0.15s" }}
+                />
+              </div>
+            </button>
+          ))}
+          <p className="text-[11px] mt-1" style={{ color: C.textDim }}>
+            Los avisos de tu pago y del vencimiento de tu plan siempre te llegan.
+          </p>
+        </>
+      ) : bloqueado ? (
+        <p className="text-xs" style={{ color: C.textDim }}>
+          Las notificaciones están bloqueadas en este navegador. Habilitalas desde los permisos del sitio (el candado al lado de la dirección) y recargá la página.
+        </p>
+      ) : (
+        <>
+          <p className="text-xs mb-3" style={{ color: C.textDim }}>
+            Activalas para enterarte al instante de nuevas señales, cambios y el estado de tu pago.
+          </p>
+          <button
+            onClick={activar}
+            disabled={permiso === null}
+            className="w-full rounded-xl py-2.5 text-sm font-semibold"
+            style={{ backgroundColor: C.green, color: "#08090B", opacity: permiso === null ? 0.5 : 1 }}
+          >
+            Activar notificaciones
+          </button>
+        </>
       )}
     </div>
   );
@@ -5499,6 +5730,8 @@ function ConfiguracionView({ onBack, themeName, onSetTheme, nombre, setNombre, a
         </div>
       </div>
 
+      <NotificacionesSettings />
+
       <button
         onClick={() => setShowTermsPage(true)}
         className="w-full flex items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-semibold mb-3"
@@ -5529,6 +5762,7 @@ function ConfiguracionView({ onBack, themeName, onSetTheme, nombre, setNombre, a
           fixedPlanId={ultimoComprobante?.estado === "rechazado" ? ultimoComprobante.plan_id : undefined}
           initialMeses={ultimoComprobante?.estado === "rechazado" ? ultimoComprobante.plan_meses : undefined}
           tipoOperacion={ultimoComprobante?.estado === "rechazado" ? ultimoComprobante.tipo_operacion : undefined}
+          metodoPago={ultimoComprobante?.estado === "rechazado" ? ultimoComprobante.metodo_pago : undefined}
           onClose={() => setShowProofForm(false)}
           onSent={() => {
             setShowProofForm(false);
@@ -7416,6 +7650,25 @@ export default function App() {
     return () => window.removeEventListener("popstate", handler);
   }, [session]);
 
+  // Asocia este dispositivo con la cuenta en OneSignal y publica datos para segmentar los avisos.
+  React.useEffect(() => {
+    const uid = session?.userId;
+    if (!uid) return;
+    const p = session.profile;
+    const prefs = loadNotifPrefs();
+    const vencido = p && !p.es_admin ? computeSubStatus(p).label === "Vencida" : false;
+    withOneSignal(async (OneSignal) => {
+      await OneSignal.login(uid);
+      OneSignal.User.addTags({
+        admin: p?.es_admin ? "1" : "0",
+        nivel: p?.nivel_contenido || "prueba",
+        vencido: vencido ? "1" : "0",
+        senales: prefs.senales ? "1" : "0",
+        novedades: prefs.novedades ? "1" : "0",
+      });
+    });
+  }, [session?.userId, session?.profile?.es_admin, session?.profile?.nivel_contenido, session?.profile?.fecha_vencimiento]);
+
   // Renueva el token de acceso cada 45 minutos mientras la sesión sigue abierta,
   // para que no haga falta refrescar la página (F5) después de dejarla abierta un rato.
   React.useEffect(() => {
@@ -7562,6 +7815,9 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    withOneSignal(async (OneSignal) => {
+      await OneSignal.logout();
+    });
     setSession(null);
     clearStoredSession();
     setTab("home");
@@ -7602,9 +7858,10 @@ export default function App() {
 
   const filtered = signals.filter((s) => {
     if (filter === "Todas") return true;
-    if (filter === "Activas") return s.estado === "activa";
-    if (filter === "Pendientes") return s.estado === "pendiente";
-    if (filter === "Cerradas") return s.estado === "ganada" || s.estado === "perdida" || s.estado === "be" || s.estado === "descartada";
+    const estG = estadoGeneral(s).estado;
+    if (filter === "Activas") return estG === "activa";
+    if (filter === "Pendientes") return estG === "pendiente";
+    if (filter === "Cerradas") return ESTADOS_CERRADOS.includes(estG);
     return s.par === filter;
   });
 
