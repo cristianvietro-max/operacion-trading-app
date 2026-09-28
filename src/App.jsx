@@ -5351,15 +5351,93 @@ function UsuariosView({ onBack, accessToken, onApproved, adminNombre }) {
   );
 }
 
+const NOTIF_PROMPT_KEY = "op_notif_prompt_seen";
+
+function esIOSSinInstalar() {
+  if (typeof navigator === "undefined" || typeof window === "undefined") return false;
+  const esIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const instalada =
+    window.navigator.standalone === true ||
+    (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches);
+  return esIOS && !instalada;
+}
+
+// Cartelito que aparece una sola vez por dispositivo para pedir el permiso de notificaciones.
+function NotifPrompt() {
+  const [visible, setVisible] = useState(false);
+
+  React.useEffect(() => {
+    let visto = false;
+    try {
+      visto = localStorage.getItem(NOTIF_PROMPT_KEY) === "1";
+    } catch (err) {}
+    if (visto || esIOSSinInstalar()) return;
+    let cancelado = false;
+    withOneSignal(async (OneSignal) => {
+      const denegado = typeof Notification !== "undefined" && Notification.permission === "denied";
+      if (!OneSignal.Notifications.permission && !denegado && !cancelado) setVisible(true);
+    });
+    return () => {
+      cancelado = true;
+    };
+  }, []);
+
+  const cerrar = () => {
+    try {
+      localStorage.setItem(NOTIF_PROMPT_KEY, "1");
+    } catch (err) {}
+    setVisible(false);
+  };
+
+  const activar = () => {
+    cerrar();
+    withOneSignal(async (OneSignal) => {
+      await OneSignal.Notifications.requestPermission();
+    });
+  };
+
+  if (!visible) return null;
+  return (
+    <div className="fixed bottom-20 left-0 right-0 z-[75] px-4 flex justify-center">
+      <div
+        className="w-full max-w-md rounded-2xl px-4 py-4"
+        style={{ backgroundColor: C.card, border: `1px solid ${C.green}`, boxShadow: "0 8px 30px rgba(0,0,0,0.5)" }}
+      >
+        <div className="flex items-start gap-3 mb-3">
+          <Bell size={20} color={C.green} className="mt-0.5 shrink-0" />
+          <div>
+            <div className="text-sm font-semibold" style={{ color: C.text }}>Activá las notificaciones</div>
+            <div className="text-xs mt-0.5" style={{ color: C.textDim }}>
+              Enterate al instante de nuevas señales, cambios y del estado de tu pago. Después podés elegir cuáles recibir en Configuración.
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={cerrar}
+            className="flex-1 rounded-xl py-2.5 text-sm font-medium"
+            style={{ backgroundColor: C.cardAlt, color: C.textDim }}
+          >
+            Ahora no
+          </button>
+          <button
+            onClick={activar}
+            className="flex-1 rounded-xl py-2.5 text-sm font-semibold"
+            style={{ backgroundColor: C.green, color: "#08090B" }}
+          >
+            Activar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function NotificacionesSettings() {
   const [permiso, setPermiso] = useState(null); // null = cargando, true/false
   const [bloqueado, setBloqueado] = useState(false);
   const [prefs, setPrefs] = useState(loadNotifPrefs());
-  const esIOS = typeof navigator !== "undefined" && /iPad|iPhone|iPod/.test(navigator.userAgent);
-  const instalada =
-    typeof window !== "undefined" &&
-    (window.navigator.standalone === true || (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches));
-  const iosSinInstalar = esIOS && !instalada;
+  const iosSinInstalar = esIOSSinInstalar();
 
   React.useEffect(() => {
     withOneSignal(async (OneSignal) => {
@@ -5406,54 +5484,58 @@ function NotificacionesSettings() {
         </p>
       )}
 
-      {permiso ? (
-        <>
-          <p className="text-xs mb-3" style={{ color: C.green }}>✓ Notificaciones activadas en este dispositivo</p>
-          {opciones.map((o) => (
-            <button
-              key={o.key}
-              onClick={() => cambiar(o.key)}
-              className="w-full flex items-center justify-between rounded-xl px-4 py-3 mb-2 text-left"
-              style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.border}` }}
-            >
-              <div className="pr-3">
-                <div className="text-sm font-medium" style={{ color: C.text }}>{o.label}</div>
-                <div className="text-[11px]" style={{ color: C.textDim }}>{o.desc}</div>
-              </div>
-              <div
-                className="w-10 h-6 rounded-full relative shrink-0"
-                style={{ backgroundColor: prefs[o.key] ? C.green : C.border }}
-              >
-                <div
-                  className="absolute top-0.5 w-5 h-5 rounded-full bg-white"
-                  style={{ left: prefs[o.key] ? 18 : 2, transition: "left 0.15s" }}
-                />
-              </div>
-            </button>
-          ))}
-          <p className="text-[11px] mt-1" style={{ color: C.textDim }}>
-            Los avisos de tu pago y del vencimiento de tu plan siempre te llegan.
-          </p>
-        </>
-      ) : bloqueado ? (
-        <p className="text-xs" style={{ color: C.textDim }}>
-          Las notificaciones están bloqueadas en este navegador. Habilitalas desde los permisos del sitio (el candado al lado de la dirección) y recargá la página.
-        </p>
-      ) : (
-        <>
-          <p className="text-xs mb-3" style={{ color: C.textDim }}>
-            Activalas para enterarte al instante de nuevas señales, cambios y el estado de tu pago.
-          </p>
+      {permiso === false && !bloqueado && !iosSinInstalar && (
+        <div
+          className="rounded-xl px-4 py-3 mb-3 flex items-center justify-between gap-3"
+          style={{ backgroundColor: "rgba(240,180,41,0.1)", border: `1px solid ${C.warningBorder}` }}
+        >
+          <span className="text-xs" style={{ color: C.text }}>Este dispositivo todavía no tiene los permisos para recibir avisos.</span>
           <button
             onClick={activar}
-            disabled={permiso === null}
-            className="w-full rounded-xl py-2.5 text-sm font-semibold"
-            style={{ backgroundColor: C.green, color: "#08090B", opacity: permiso === null ? 0.5 : 1 }}
+            className="rounded-lg px-3 py-2 text-xs font-semibold shrink-0"
+            style={{ backgroundColor: C.green, color: "#08090B" }}
           >
-            Activar notificaciones
+            Permitir
           </button>
-        </>
+        </div>
       )}
+
+      {bloqueado && (
+        <p className="text-xs mb-3" style={{ color: C.warningText }}>
+          Las notificaciones están bloqueadas en este navegador. Habilitalas desde los permisos del sitio (el candado al lado de la dirección) y recargá la página.
+        </p>
+      )}
+
+      <p className="text-xs mb-3" style={{ color: C.textDim }}>
+        Vienen todas activadas. Destildá las que no quieras recibir.
+      </p>
+
+      {opciones.map((o) => (
+        <button
+          key={o.key}
+          onClick={() => cambiar(o.key)}
+          className="w-full flex items-center justify-between rounded-xl px-4 py-3 mb-2 text-left"
+          style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.border}` }}
+        >
+          <div className="pr-3">
+            <div className="text-sm font-medium" style={{ color: C.text }}>{o.label}</div>
+            <div className="text-[11px]" style={{ color: C.textDim }}>{o.desc}</div>
+          </div>
+          <div
+            className="w-6 h-6 rounded-md flex items-center justify-center shrink-0"
+            style={{
+              backgroundColor: prefs[o.key] ? C.green : "transparent",
+              border: `1px solid ${prefs[o.key] ? C.green : C.border}`,
+            }}
+          >
+            {prefs[o.key] && <Check size={15} color="#08090B" strokeWidth={3} />}
+          </div>
+        </button>
+      ))}
+
+      <p className="text-[11px] mt-1" style={{ color: C.textDim }}>
+        Los avisos de tu pago y del vencimiento de tu plan siempre te llegan.
+      </p>
     </div>
   );
 }
@@ -8357,6 +8439,8 @@ export default function App() {
       {activeFlyers.length > 0 && !flyerDismissed && !needsPersonalData && (
         <FlyerPopup flyers={activeFlyers} onClose={() => setFlyerDismissed(true)} />
       )}
+
+      {!needsPersonalData && !(activeFlyers.length > 0 && !flyerDismissed) && <NotifPrompt />}
 
       <div
         className="fixed left-0 right-0 flex flex-col items-center justify-center gap-0.5 py-1.5 px-4"
