@@ -4729,6 +4729,74 @@ function UserEditForm({ user, onClose, onSaved, accessToken }) {
     if (value) setFechaVencimiento(addMonths(value, 3));
   };
 
+  const previewRenovacion = (meses) => {
+    const hoy = new Date().toISOString().slice(0, 10);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const vencActual = fechaVencimiento ? new Date(fechaVencimiento + "T00:00:00") : null;
+    const base = vencActual && vencActual > today ? fechaVencimiento : hoy;
+    return addMonths(base, meses);
+  };
+
+  const aplicarRenovacion = async (meses) => {
+    if (!meses || meses <= 0) return;
+    setAplicandoRenovacion(true);
+    setError(null);
+    try {
+      const hoy = new Date().toISOString().slice(0, 10);
+      const nuevoVenc = previewRenovacion(meses);
+      await updateProfile(user.id, { fecha_renovacion: hoy, fecha_vencimiento: nuevoVenc, pago: true }, accessToken);
+      setFechaRenovacion(hoy);
+      setFechaVencimiento(nuevoVenc);
+      setPago(true);
+      setRenovacionOk(nuevoVenc);
+      setRenovando(false);
+      setMesesElegidos(null);
+      setMesesPersonalizado("");
+      onSaved();
+    } catch (err) {
+      setError(err.message || "No se pudo renovar");
+    } finally {
+      setAplicandoRenovacion(false);
+    }
+  };
+
+  const habilitarRapido = async () => {
+    setBloqueandoLoading(true);
+    setError(null);
+    try {
+      await updateProfile(user.id, { aprobado: true, motivo_bloqueo: null }, accessToken);
+      setAprobado(true);
+      setMotivoBloqueoActual(null);
+      onSaved();
+    } catch (err) {
+      setError(err.message || "No se pudo habilitar la cuenta");
+    } finally {
+      setBloqueandoLoading(false);
+    }
+  };
+
+  const confirmarBloqueo = async () => {
+    setBloqueandoLoading(true);
+    setError(null);
+    try {
+      const fecha = new Date().toLocaleDateString("es-AR");
+      const linea = `[Bloqueo ${fecha}] ${motivoBloqueo}${notaBloqueo.trim() ? " — " + notaBloqueo.trim() : ""}`;
+      const notasNuevas = notasAdmin.trim() ? `${notasAdmin}\n${linea}` : linea;
+      await updateProfile(user.id, { aprobado: false, motivo_bloqueo: motivoBloqueo, notas_admin: notasNuevas }, accessToken);
+      setAprobado(false);
+      setMotivoBloqueoActual(motivoBloqueo);
+      setNotasAdmin(notasNuevas);
+      setBloqueando(false);
+      setNotaBloqueo("");
+      onSaved();
+    } catch (err) {
+      setError(err.message || "No se pudo bloquear la cuenta");
+    } finally {
+      setBloqueandoLoading(false);
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setError(null);
@@ -4779,43 +4847,9 @@ function UserEditForm({ user, onClose, onSaved, accessToken }) {
 
         <p className="text-xs mb-4" style={{ color: C.textDim }}>{user.email}</p>
 
-        {!cargandoComprobante && ultimoComprobante && (
-          <div className="rounded-2xl p-3 mb-4" style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.border}` }}>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>ÚLTIMO COMPROBANTE</span>
-              <span
-                className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full"
-                style={{
-                  backgroundColor: ultimoComprobante.estado === "aprobado" ? C.greenSoft : ultimoComprobante.estado === "rechazado" ? C.redSoft : "rgba(240,180,41,0.14)",
-                  color: ultimoComprobante.estado === "aprobado" ? C.green : ultimoComprobante.estado === "rechazado" ? C.red : "#F0B429",
-                }}
-              >
-                {ultimoComprobante.estado}
-              </span>
-            </div>
-            <div className="flex gap-3 items-center">
-              <button onClick={() => setViendoComprobante(true)} className="shrink-0">
-                <img src={ultimoComprobante.imagen_url} alt="Comprobante" className="w-16 h-16 rounded-lg object-cover" />
-              </button>
-              <div className="text-xs" style={{ color: C.textDim }}>
-                <div>
-                  Plan: <span style={{ color: C.text }}>{PLANES_PRO.find((p) => p.id === ultimoComprobante.plan_id)?.label || (ultimoComprobante.plan_meses ? `${ultimoComprobante.plan_meses} meses` : "—")}</span>
-                </div>
-                {ultimoComprobante.metodo_pago && (
-                  <div>Método: <span style={{ color: C.text }}>{ultimoComprobante.metodo_pago === "ars" ? "Pesos ARG" : "USD/USDT"}</span></div>
-                )}
-                <div>
-                  Fecha: <span style={{ color: C.text }}>{ultimoComprobante.created_at ? new Date(ultimoComprobante.created_at).toLocaleDateString("es-AR") : "—"}</span>
-                </div>
-                {ultimoComprobante.motivo_rechazo && (
-                  <div className="mt-0.5" style={{ color: C.red }}>Motivo: {ultimoComprobante.motivo_rechazo}</div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="mb-3">
+        {/* 👤 USUARIO */}
+        <div className="text-[11px] tracking-widest font-semibold mb-2" style={{ color: C.textDim }}>👤 USUARIO</div>
+        <div className="mb-1">
           <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>NOMBRE</label>
           <input
             value={nombre}
@@ -4824,68 +4858,236 @@ function UserEditForm({ user, onClose, onSaved, accessToken }) {
             style={inputStyle}
           />
         </div>
-
-        <div className="grid grid-cols-2 gap-3 mb-1">
-          <div>
-            <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>ÚLTIMA RENOVACIÓN</label>
-            <input
-              type="date"
-              value={fechaRenovacion || ""}
-              onChange={(e) => handleRenovacionChange(e.target.value)}
-              className="w-full mt-1 rounded-xl px-3 py-3 text-sm outline-none"
-              style={inputStyle}
-            />
+        {(user.telefono || user.fecha_inicio) && (
+          <div className="flex flex-col gap-0.5 mb-4 text-xs" style={{ color: C.textDim }}>
+            {user.telefono && <div>WhatsApp: <span style={{ color: C.text }}>{user.telefono}</span></div>}
+            {user.fecha_inicio && <div>Se registró: <span style={{ color: C.text }}>{user.fecha_inicio}</span></div>}
           </div>
-          <div>
-            <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>VENCIMIENTO</label>
-            <input
-              type="date"
-              value={fechaVencimiento || ""}
-              onChange={(e) => setFechaVencimiento(e.target.value)}
-              disabled={vitalicio}
-              className="w-full mt-1 rounded-xl px-3 py-3 text-sm outline-none"
-              style={{ ...inputStyle, opacity: vitalicio ? 0.4 : 1 }}
-            />
-          </div>
-        </div>
-        <p className="text-[10px] mb-3" style={{ color: C.textDim }}>
-          El vencimiento se calcula solo (renovación + 3 meses) — podés ajustarlo a mano si hace falta.
-        </p>
+        )}
 
-        <div className="mb-3">
-          <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>
-            NIVEL DE CONTENIDO
-          </label>
-          <select
-            value={nivelContenido}
-            onChange={(e) => setNivelContenido(e.target.value)}
-            disabled={esAdmin}
-            className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
-            style={{ ...inputStyle, opacity: esAdmin ? 0.4 : 1 }}
+        {/* 💳 MEMBRESÍA */}
+        <div className="rounded-2xl p-3 mb-4" style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.border}` }}>
+          <div className="text-[11px] tracking-widest font-semibold mb-2" style={{ color: C.textDim }}>💳 MEMBRESÍA</div>
+
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs" style={{ color: C.textDim }}>Estado</span>
+            <span
+              className="text-[11px] font-semibold px-2 py-0.5 rounded-full"
+              style={{ color: computeSubStatus({ ...user, vitalicio, fecha_vencimiento: fechaVencimiento, pago }).color, backgroundColor: `${computeSubStatus({ ...user, vitalicio, fecha_vencimiento: fechaVencimiento, pago }).color}22` }}
+            >
+              {computeSubStatus({ ...user, vitalicio, fecha_vencimiento: fechaVencimiento, pago }).label}
+            </span>
+          </div>
+
+          <div className="mb-1">
+            <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>PLAN (NIVEL DE CONTENIDO)</label>
+            <select
+              value={nivelContenido}
+              onChange={(e) => setNivelContenido(e.target.value)}
+              disabled={esAdmin}
+              className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
+              style={{ ...inputStyle, opacity: esAdmin ? 0.4 : 1 }}
+            >
+              {NIVELES_CONTENIDO.map((n) => (
+                <option key={n.value} value={n.value}>{n.label}</option>
+              ))}
+            </select>
+            {esAdmin && (
+              <p className="text-[10px] mt-1" style={{ color: C.textDim }}>No aplica: es admin, ya tiene acceso a todo.</p>
+            )}
+          </div>
+
+          <button
+            onClick={() => setVitalicio((v) => !v)}
+            className="w-full flex items-center justify-between rounded-xl px-4 py-3 my-2"
+            style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
           >
-            {NIVELES_CONTENIDO.map((n) => (
-              <option key={n.value} value={n.value}>{n.label}</option>
-            ))}
-          </select>
-          {esAdmin && (
-            <p className="text-[10px] mt-1" style={{ color: C.textDim }}>
-              No aplica: es admin, ya tiene acceso a todo.
-            </p>
-          )}
-          {vitalicio && !esAdmin && (
-            <p className="text-[10px] mt-1" style={{ color: C.textDim }}>
-              Vitalicio solo significa que no vence — igual elegí qué nivel de contenido tiene.
-            </p>
+            <span className="text-sm" style={{ color: C.text }}>Vitalicio (sin vencimiento)</span>
+            <div className="w-10 rounded-full relative" style={{ backgroundColor: vitalicio ? C.green : C.border, height: 22, width: 40 }}>
+              <div className="absolute top-0.5 rounded-full" style={{ backgroundColor: "#08090B", width: 18, height: 18, transform: vitalicio ? "translateX(20px)" : "translateX(2px)" }} />
+            </div>
+          </button>
+
+          {!vitalicio && (
+            <>
+              <div className="grid grid-cols-2 gap-2 text-xs mb-2">
+                <div>
+                  <span style={{ color: C.textDim }}>Última renovación</span>
+                  <div style={{ color: C.text }}>{fechaRenovacion || "—"}</div>
+                </div>
+                <div>
+                  <span style={{ color: C.textDim }}>Vencimiento</span>
+                  <div style={{ color: C.text }}>{fechaVencimiento || "—"}{daysUntilVencimiento({ vitalicio, fecha_vencimiento: fechaVencimiento }) != null && ` (${daysUntilVencimiento({ vitalicio, fecha_vencimiento: fechaVencimiento })} días)`}</div>
+                </div>
+              </div>
+
+              {!renovando ? (
+                <button
+                  onClick={() => setRenovando(true)}
+                  className="w-full rounded-xl py-2.5 text-sm font-semibold mb-1"
+                  style={{ backgroundColor: C.green, color: "#08090B" }}
+                >
+                  🔄 Renovar membresía
+                </button>
+              ) : (
+                <div className="rounded-xl p-3 mb-1" style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}>
+                  <div className="text-[11px] font-medium mb-2" style={{ color: C.textDim }}>RENOVAR MEMBRESÍA</div>
+                  <div className="grid grid-cols-2 gap-1.5 mb-2">
+                    {[1, 3, 6, 12].map((m) => (
+                      <button
+                        key={m}
+                        onClick={() => setMesesElegidos(m)}
+                        className="rounded-lg py-2 text-xs font-semibold"
+                        style={{
+                          backgroundColor: mesesElegidos === m ? C.greenSoft : C.cardAlt,
+                          border: `1px solid ${mesesElegidos === m ? C.green : C.border}`,
+                          color: mesesElegidos === m ? C.green : C.text,
+                        }}
+                      >
+                        +{m} mes{m === 1 ? "" : "es"}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <input
+                      type="number"
+                      min="1"
+                      value={mesesPersonalizado}
+                      onChange={(e) => {
+                        setMesesPersonalizado(e.target.value);
+                        setMesesElegidos(null);
+                      }}
+                      placeholder="Personalizado (meses)"
+                      className="flex-1 rounded-lg px-3 py-2 text-xs outline-none"
+                      style={inputStyle}
+                    />
+                  </div>
+                  {(mesesElegidos || Number(mesesPersonalizado) > 0) && (
+                    <p className="text-[11px] mb-2" style={{ color: C.green }}>
+                      Nuevo vencimiento: {previewRenovacion(mesesElegidos || Number(mesesPersonalizado))}
+                    </p>
+                  )}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setRenovando(false);
+                        setMesesElegidos(null);
+                        setMesesPersonalizado("");
+                      }}
+                      className="flex-1 rounded-lg py-2 text-xs font-medium"
+                      style={{ backgroundColor: C.cardAlt, color: C.textDim }}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={() => aplicarRenovacion(mesesElegidos || Number(mesesPersonalizado))}
+                      disabled={aplicandoRenovacion || !(mesesElegidos || Number(mesesPersonalizado) > 0)}
+                      className="flex-1 rounded-lg py-2 text-xs font-semibold"
+                      style={{ backgroundColor: C.green, color: "#08090B" }}
+                    >
+                      {aplicandoRenovacion ? "Aplicando..." : "Confirmar"}
+                    </button>
+                  </div>
+                </div>
+              )}
+              {renovacionOk && !renovando && (
+                <p className="text-[11px] mb-1" style={{ color: C.green }}>✓ Renovado hasta {renovacionOk}</p>
+              )}
+
+              <button
+                onClick={() => setMostrarFechasManual((v) => !v)}
+                className="text-[11px] font-medium mt-1"
+                style={{ color: C.textDim }}
+              >
+                {mostrarFechasManual ? "Ocultar" : "Editar fechas a mano (excepcional)"}
+              </button>
+              {mostrarFechasManual && (
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  <div>
+                    <label className="text-[10px]" style={{ color: C.textDim }}>ÚLTIMA RENOVACIÓN</label>
+                    <input
+                      type="date"
+                      value={fechaRenovacion || ""}
+                      onChange={(e) => handleRenovacionChange(e.target.value)}
+                      className="w-full mt-1 rounded-lg px-2 py-2 text-xs outline-none"
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px]" style={{ color: C.textDim }}>VENCIMIENTO</label>
+                    <input
+                      type="date"
+                      value={fechaVencimiento || ""}
+                      onChange={(e) => setFechaVencimiento(e.target.value)}
+                      className="w-full mt-1 rounded-lg px-2 py-2 text-xs outline-none"
+                      style={inputStyle}
+                    />
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
 
+        {/* 💰 PAGOS */}
+        <div className="rounded-2xl p-3 mb-4" style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.border}` }}>
+          <div className="text-[11px] tracking-widest font-semibold mb-2" style={{ color: C.textDim }}>💰 PAGOS</div>
+
+          {!cargandoComprobante && ultimoComprobante ? (
+            <div className="flex gap-3 items-center mb-2">
+              <button onClick={() => setViendoComprobante(true)} className="shrink-0">
+                <img src={ultimoComprobante.imagen_url} alt="Comprobante" className="w-14 h-14 rounded-lg object-cover" />
+              </button>
+              <div className="text-xs flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span style={{ color: C.text }}>{PLANES_PRO.find((p) => p.id === ultimoComprobante.plan_id)?.label || (ultimoComprobante.plan_meses ? `${ultimoComprobante.plan_meses} meses` : "Sin plan")}</span>
+                  <span
+                    className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full"
+                    style={{
+                      backgroundColor: ultimoComprobante.estado === "aprobado" ? C.greenSoft : ultimoComprobante.estado === "rechazado" ? C.redSoft : "rgba(240,180,41,0.14)",
+                      color: ultimoComprobante.estado === "aprobado" ? C.green : ultimoComprobante.estado === "rechazado" ? C.red : "#F0B429",
+                    }}
+                  >
+                    {ultimoComprobante.estado}
+                  </span>
+                </div>
+                {ultimoComprobante.metodo_pago && (
+                  <div style={{ color: C.textDim }}>Método: {ultimoComprobante.metodo_pago === "ars" ? "Pesos ARG" : "USD/USDT"}</div>
+                )}
+                <div style={{ color: C.textDim }}>{ultimoComprobante.created_at ? new Date(ultimoComprobante.created_at).toLocaleDateString("es-AR") : "—"}</div>
+                {ultimoComprobante.motivo_rechazo && <div style={{ color: C.red }}>Motivo: {ultimoComprobante.motivo_rechazo}</div>}
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs mb-2" style={{ color: C.textDim }}>Todavía no subió ningún comprobante.</p>
+          )}
+
+          <button
+            onClick={() => setShowHistorial(true)}
+            className="w-full rounded-xl py-2 text-xs font-semibold mb-2"
+            style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, color: C.text }}
+          >
+            Ver historial de pagos
+          </button>
+
+          <button
+            onClick={() => setPago((v) => !v)}
+            className="w-full flex items-center justify-between rounded-xl px-4 py-3"
+            style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
+          >
+            <span className="text-sm" style={{ color: C.text }}>Pagó (al día) — manual</span>
+            <div className="w-10 rounded-full relative" style={{ backgroundColor: pago ? C.green : C.border, height: 22, width: 40 }}>
+              <div className="absolute top-0.5 rounded-full" style={{ backgroundColor: "#08090B", width: 18, height: 18, transform: pago ? "translateX(20px)" : "translateX(2px)" }} />
+            </div>
+          </button>
+        </div>
+
+        {/* 📱 ACCESO y 🛡️ PERMISOS */}
+        <div className="text-[11px] tracking-widest font-semibold mb-2" style={{ color: C.textDim }}>📱 ACCESO Y PERMISOS</div>
         {[
-          { label: "Vitalicio", value: vitalicio, set: setVitalicio },
-          { label: "Pagó (al día)", value: pago, set: setPago },
           { label: "Alumno de la comunidad", value: alumno, set: setAlumno },
           { label: "Puede cargar señales (sin ser admin)", value: esSenalero, set: setEsSenalero },
           { label: "Es admin", value: esAdmin, set: setEsAdmin },
-          { label: "Habilitado (desmarcá para bloquear la cuenta)", value: aprobado, set: setAprobado },
         ].map((f) => (
           <button
             key={f.label}
@@ -4910,6 +5112,32 @@ function UserEditForm({ user, onClose, onSaved, accessToken }) {
             </div>
           </button>
         ))}
+
+        {/* ⚙️ CUENTA */}
+        <div className="text-[11px] tracking-widest font-semibold mt-2 mb-2" style={{ color: C.textDim }}>⚙️ CUENTA</div>
+        {aprobado ? (
+          <button
+            onClick={() => setBloqueando(true)}
+            className="w-full rounded-xl px-4 py-3 mb-2 text-sm font-semibold"
+            style={{ backgroundColor: C.redSoft, color: C.red }}
+          >
+            🔒 Bloquear usuario
+          </button>
+        ) : (
+          <div className="rounded-xl p-3 mb-2" style={{ backgroundColor: C.redSoft, border: `1px solid ${C.red}66` }}>
+            <p className="text-xs mb-2" style={{ color: C.red }}>
+              🔒 Cuenta bloqueada{motivoBloqueoActual ? ` — ${motivoBloqueoActual}` : ""}
+            </p>
+            <button
+              onClick={habilitarRapido}
+              disabled={bloqueandoLoading}
+              className="w-full rounded-lg py-2 text-xs font-semibold"
+              style={{ backgroundColor: C.green, color: "#08090B" }}
+            >
+              {bloqueandoLoading ? "Habilitando..." : "✓ Habilitar cuenta"}
+            </button>
+          </div>
+        )}
 
         <div className="mt-3">
           <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>
@@ -4951,6 +5179,65 @@ function UserEditForm({ user, onClose, onSaved, accessToken }) {
           </button>
           <img src={ultimoComprobante.imagen_url} alt="Comprobante" className="max-w-full max-h-full rounded-xl" />
         </div>
+      )}
+
+      {bloqueando && (
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center p-5"
+          style={{ backgroundColor: "rgba(0,0,0,0.7)" }}
+          onClick={(e) => {
+            e.stopPropagation();
+            setBloqueando(false);
+          }}
+        >
+          <div
+            className="w-full max-w-xs rounded-2xl p-5"
+            style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-sm font-semibold mb-3" style={{ color: C.text }}>Bloquear a {user.nombre || user.email}</p>
+            <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>MOTIVO</label>
+            <select
+              value={motivoBloqueo}
+              onChange={(e) => setMotivoBloqueo(e.target.value)}
+              className="w-full mt-1 mb-2 rounded-xl px-3 py-2.5 text-sm outline-none"
+              style={inputStyle}
+            >
+              {["Falta de pago", "Solicitud del usuario", "Incumplimiento", "Otro"].map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+            <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>NOTA INTERNA (OPCIONAL)</label>
+            <textarea
+              value={notaBloqueo}
+              onChange={(e) => setNotaBloqueo(e.target.value)}
+              rows={2}
+              className="w-full mt-1 mb-3 rounded-xl px-3 py-2.5 text-sm outline-none resize-none"
+              style={inputStyle}
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={() => setBloqueando(false)}
+                className="flex-1 rounded-xl py-2.5 text-sm font-medium"
+                style={{ backgroundColor: C.cardAlt, color: C.text }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmarBloqueo}
+                disabled={bloqueandoLoading}
+                className="flex-1 rounded-xl py-2.5 text-sm font-semibold"
+                style={{ backgroundColor: C.red, color: "#fff" }}
+              >
+                {bloqueandoLoading ? "Bloqueando..." : "Confirmar bloqueo"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showHistorial && (
+        <HistorialComprobantesModal userId={user.id} accessToken={accessToken} onClose={() => setShowHistorial(false)} />
       )}
     </div>
   );
@@ -4996,6 +5283,7 @@ function UsuariosView({ onBack, accessToken, onApproved, adminNombre }) {
   };
   const [search, setSearch] = useState("");
   const [nuevosIds, setNuevosIds] = useState(new Set());
+  const [filtroCategoria, setFiltroCategoria] = useState("todos");
 
   const load = () => {
     setLoading(true);
@@ -5035,6 +5323,30 @@ function UsuariosView({ onBack, accessToken, onApproved, adminNombre }) {
   const hace7Dias = new Date();
   hace7Dias.setDate(hace7Dias.getDate() - 7);
   const nuevosUltimos7Dias = users.filter((u) => u.fecha_inicio && new Date(u.fecha_inicio) >= hace7Dias).length;
+
+  // Categorías para el resumen y los filtros — no cambian ningún dato, solo agrupan lo que ya existe.
+  const catDe = (u) => {
+    const status = computeSubStatus(u);
+    const dias = daysUntilVencimiento(u);
+    if (u.aprobado === false) return "bloqueados";
+    if (u.es_admin) return "admins";
+    if (u.vitalicio) return "vitalicios";
+    if (status.label === "Vencida") return "vencidos";
+    if (dias != null && dias >= 0 && dias <= 7) return "porVencer";
+    return "activos";
+  };
+  const conteos = {
+    todos: users.length,
+    activos: users.filter((u) => catDe(u) === "activos").length,
+    porVencer: users.filter((u) => catDe(u) === "porVencer").length,
+    vencidos: users.filter((u) => catDe(u) === "vencidos").length,
+    vitalicios: users.filter((u) => catDe(u) === "vitalicios").length,
+    bloqueados: users.filter((u) => catDe(u) === "bloqueados").length,
+    admins: users.filter((u) => catDe(u) === "admins").length,
+  };
+  const usersCategorizados = filtroCategoria === "todos" ? usersFiltrados : usersFiltrados.filter((u) => catDe(u) === filtroCategoria);
+  const pagosPendientesCount = comprobantes.length;
+  const requierenAtencionTotal = conteos.porVencer + conteos.vencidos + pagosPendientesCount;
 
   const quickApprove = async (u) => {
     setApprovingId(u.id);
@@ -5110,44 +5422,35 @@ function UsuariosView({ onBack, accessToken, onApproved, adminNombre }) {
 
   const renderUserCard = (u, highlight) => {
     const status = computeSubStatus(u);
-    const inicial = (u.nombre || u.email || "?").trim().charAt(0).toUpperCase();
+    const dias = daysUntilVencimiento(u);
+    const badge = badgeNivelUsuario(u);
     return (
       <div
         key={u.id}
         className="rounded-xl overflow-hidden"
         style={{ backgroundColor: C.card, border: `1px solid ${highlight ? "#F0B429" : C.border}` }}
       >
-        <button onClick={() => setEditingUser(u)} className="w-full flex items-center gap-3 px-3 py-2.5 text-left">
-          <div
-            className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-xs font-bold"
-            style={{ backgroundColor: C.cardAlt, color: C.textDim }}
-          >
-            {inicial}
-          </div>
+        <button onClick={() => setEditingUser(u)} className="w-full flex items-center gap-3 px-3.5 py-3 text-left">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5">
-              <span className="font-semibold text-[13px] truncate" style={{ color: C.text }}>{u.nombre || "Sin nombre"}</span>
-              {(() => {
-                const b = badgeNivelUsuario(u);
-                return (
-                  <span
-                    className="text-[9px] font-bold px-1 rounded shrink-0"
-                    style={{ backgroundColor: `${b.color}22`, color: b.color }}
-                  >
-                    {b.label}
-                  </span>
-                );
-              })()}
-              {nuevosIds.has(u.id) && <span className="text-[9px] font-bold px-1 rounded" style={{ backgroundColor: C.greenSoft, color: C.green }}>NUEVO</span>}
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <span className="font-semibold text-[13.5px] truncate" style={{ color: C.text }}>{u.nombre || "Sin nombre"}</span>
+              {nuevosIds.has(u.id) && <span className="text-[9px] font-bold px-1 rounded shrink-0" style={{ backgroundColor: C.greenSoft, color: C.green }}>NUEVO</span>}
             </div>
-            <div className="text-[11px] truncate" style={{ color: C.textDim }}>{u.email}</div>
+            <div className="text-[11px] truncate mb-1" style={{ color: C.textDim }}>{u.email}</div>
+            <div className="flex items-center gap-1 text-[11px]" style={{ color: C.textDim }}>
+              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: status.color }} />
+              <span style={{ color: status.color }}>{status.label}</span>
+              <span>·</span>
+              <span className="truncate" style={{ color: badge.color }}>{badge.label}</span>
+            </div>
+            {!u.vitalicio && u.fecha_vencimiento && (
+              <div className="text-[11px] mt-0.5" style={{ color: C.textDim }}>
+                Vence {u.fecha_vencimiento}
+                {dias != null && <> · {dias >= 0 ? `${dias} día${dias === 1 ? "" : "s"} restante${dias === 1 ? "" : "s"}` : `venció hace ${Math.abs(dias)} día${Math.abs(dias) === 1 ? "" : "s"}`}</>}
+              </div>
+            )}
           </div>
-          <span
-            className="text-[10px] font-semibold px-2 py-1 rounded-full shrink-0 whitespace-nowrap"
-            style={{ color: status.color, backgroundColor: `${status.color}22` }}
-          >
-            {status.label}
-          </span>
+          <ChevronRight size={16} color={C.textDim} className="shrink-0" />
         </button>
         {highlight && (
           <button
@@ -5168,6 +5471,7 @@ function UsuariosView({ onBack, accessToken, onApproved, adminNombre }) {
       "Nombre",
       "Email",
       "ID",
+      "Estado suscripción",
       "Nivel",
       "Es admin",
       "Puede cargar señales",
@@ -5175,13 +5479,13 @@ function UsuariosView({ onBack, accessToken, onApproved, adminNombre }) {
       "Pagó (al día)",
       "Alumno comunidad",
       "Habilitado",
+      "Motivo de bloqueo",
       "Fecha inicio",
       "Última renovación",
       "Vencimiento",
-      "Estado suscripción",
       "Días para vencer",
+      "WhatsApp",
       "Discord",
-      "Teléfono",
       "Notas internas",
     ];
     const rows = users.map((u) => {
@@ -5191,6 +5495,7 @@ function UsuariosView({ onBack, accessToken, onApproved, adminNombre }) {
         u.nombre || "",
         u.email || "",
         u.id || "",
+        status.label,
         labelNivel(u.nivel_contenido),
         u.es_admin ? "Sí" : "No",
         u.es_senalero ? "Sí" : "No",
@@ -5198,16 +5503,34 @@ function UsuariosView({ onBack, accessToken, onApproved, adminNombre }) {
         u.pago ? "Sí" : "No",
         u.alumno_comunidad ? "Sí" : "No",
         u.aprobado !== false ? "Sí" : "No",
+        u.aprobado === false ? u.motivo_bloqueo || "" : "",
         u.fecha_inicio || "",
         u.fecha_renovacion || "",
         u.fecha_vencimiento || "",
-        status.label,
         dias != null ? dias : "",
-        u.discord_usuario || "",
         u.telefono || "",
+        u.discord_usuario || "",
         u.notas_admin || "",
       ];
     });
+    const nombreArchivo = `usuarios-${new Date().toISOString().slice(0, 10)}`;
+
+    // Excel real (con columnas de buen ancho), si la librería llegó a cargar.
+    if (window.XLSX) {
+      const datos = [headers, ...rows];
+      const hoja = window.XLSX.utils.aoa_to_sheet(datos);
+      hoja["!cols"] = headers.map((h, i) => {
+        const maxLen = Math.max(h.length, ...rows.map((r) => String(r[i] ?? "").length));
+        return { wch: Math.min(Math.max(maxLen + 2, 10), 40) };
+      });
+      hoja["!freeze"] = { xSplit: 0, ySplit: 1 };
+      const libro = window.XLSX.utils.book_new();
+      window.XLSX.utils.book_append_sheet(libro, hoja, "Usuarios");
+      window.XLSX.writeFile(libro, `${nombreArchivo}.xlsx`);
+      return;
+    }
+
+    // Si por algún motivo la librería no cargó, exporta CSV igual de completo.
     const csv = [headers, ...rows]
       .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
       .join("\n");
@@ -5215,7 +5538,7 @@ function UsuariosView({ onBack, accessToken, onApproved, adminNombre }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `usuarios-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `${nombreArchivo}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -5225,26 +5548,90 @@ function UsuariosView({ onBack, accessToken, onApproved, adminNombre }) {
       <ScreenHeader title="Usuarios" onBack={onBack} />
 
       {!loading && !error && users.length > 0 && (
-        <div className="grid grid-cols-2 gap-2 mb-3">
-          <div
-            className="rounded-xl px-3 py-2.5 flex items-center gap-2"
-            style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.border}` }}
-          >
-            <Users size={14} color={C.textDim} />
+        <>
+          <div className="flex gap-2 overflow-x-auto pb-1 mb-3" style={{ scrollbarWidth: "none" }}>
+            {[
+              { key: "todos", label: "Total", valor: conteos.todos, color: C.text },
+              { key: "activos", label: "Activos", valor: conteos.activos, color: C.green },
+              { key: "porVencer", label: "Por vencer", valor: conteos.porVencer, color: "#F0B429" },
+              { key: "vencidos", label: "Vencidos", valor: conteos.vencidos, color: C.red },
+              { key: "bloqueados", label: "Bloqueados", valor: conteos.bloqueados, color: C.textDim },
+            ].map((s) => (
+              <button
+                key={s.key}
+                onClick={() => setFiltroCategoria(s.key)}
+                className="rounded-xl px-3 py-2 shrink-0 text-center"
+                style={{
+                  backgroundColor: filtroCategoria === s.key ? `${s.color}22` : C.cardAlt,
+                  border: `1px solid ${filtroCategoria === s.key ? s.color : C.border}`,
+                  minWidth: 76,
+                }}
+              >
+                <div className="text-[15px] font-bold" style={{ color: s.color }}>{s.valor}</div>
+                <div className="text-[9.5px] whitespace-nowrap" style={{ color: C.textDim }}>{s.label}</div>
+              </button>
+            ))}
+          </div>
+
+          <div className="rounded-xl px-3 py-2.5 mb-3" style={{ backgroundColor: C.greenSoft, border: `1px solid ${C.green}44` }}>
             <span className="text-[12.5px]" style={{ color: C.text }}>
-              <b>{users.length}</b> usuario{users.length === 1 ? "" : "s"} en total
+              <b style={{ color: C.green }}>{nuevosUltimos7Dias}</b> usuario{nuevosUltimos7Dias === 1 ? "" : "s"} nuevo{nuevosUltimos7Dias === 1 ? "" : "s"} en los últimos 7 días
             </span>
           </div>
-          <div
-            className="rounded-xl px-3 py-2.5 flex items-center gap-2"
-            style={{ backgroundColor: C.greenSoft, border: `1px solid ${C.green}44` }}
-          >
-            <Users size={14} color={C.green} />
-            <span className="text-[12.5px]" style={{ color: C.text }}>
-              <b style={{ color: C.green }}>{nuevosUltimos7Dias}</b> nuevo{nuevosUltimos7Dias === 1 ? "" : "s"} (7 días)
-            </span>
+
+          {requierenAtencionTotal > 0 && (
+            <div className="rounded-2xl p-3 mb-3" style={{ backgroundColor: "rgba(240,180,41,0.1)", border: `1px solid ${C.warningBorder}` }}>
+              <div className="flex items-center gap-2 mb-2">
+                <span style={{ fontSize: 14 }}>⚠️</span>
+                <span className="text-[12.5px] font-semibold" style={{ color: "#F0B429" }}>
+                  {requierenAtencionTotal} usuario{requierenAtencionTotal === 1 ? "" : "s"} requiere{requierenAtencionTotal === 1 ? "" : "n"} atención
+                </span>
+              </div>
+              <div className="flex flex-col gap-1">
+                {conteos.porVencer > 0 && (
+                  <button onClick={() => setFiltroCategoria("porVencer")} className="text-left text-[11.5px]" style={{ color: C.text }}>
+                    • {conteos.porVencer} vence{conteos.porVencer === 1 ? "" : "n"} en ≤7 días
+                  </button>
+                )}
+                {conteos.vencidos > 0 && (
+                  <button onClick={() => setFiltroCategoria("vencidos")} className="text-left text-[11.5px]" style={{ color: C.text }}>
+                    • {conteos.vencidos} membresía{conteos.vencidos === 1 ? "" : "s"} vencida{conteos.vencidos === 1 ? "" : "s"}
+                  </button>
+                )}
+                {pagosPendientesCount > 0 && (
+                  <button onClick={() => document.getElementById("comprobantes-pendientes")?.scrollIntoView({ behavior: "smooth" })} className="text-left text-[11.5px]" style={{ color: C.text }}>
+                    • {pagosPendientesCount} pago{pagosPendientesCount === 1 ? "" : "s"} pendiente{pagosPendientesCount === 1 ? "" : "s"} de revisión
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-1.5 overflow-x-auto pb-1 mb-3" style={{ scrollbarWidth: "none" }}>
+            {[
+              { key: "todos", label: "Todos" },
+              { key: "activos", label: "Activos" },
+              { key: "porVencer", label: "Por vencer" },
+              { key: "vencidos", label: "Vencidos" },
+              { key: "vitalicios", label: "Vitalicios" },
+              { key: "bloqueados", label: "Bloqueados" },
+              { key: "admins", label: "Admins" },
+            ].map((f) => (
+              <button
+                key={f.key}
+                onClick={() => setFiltroCategoria(f.key)}
+                className="px-3 py-1.5 rounded-full text-[11.5px] font-medium shrink-0 whitespace-nowrap"
+                style={{
+                  backgroundColor: filtroCategoria === f.key ? C.green : C.cardAlt,
+                  color: filtroCategoria === f.key ? "#08090B" : C.textDim,
+                  border: `1px solid ${filtroCategoria === f.key ? C.green : C.border}`,
+                }}
+              >
+                {f.label}
+              </button>
+            ))}
           </div>
-        </div>
+        </>
       )}
 
       <button
@@ -5310,7 +5697,7 @@ function UsuariosView({ onBack, accessToken, onApproved, adminNombre }) {
           style={{ backgroundColor: C.cardAlt, color: C.text, border: `1px solid ${C.border}` }}
         >
           <Download size={15} />
-          Exportar a Excel/CSV
+          Exportar usuarios (Excel)
         </button>
       )}
 
@@ -5326,7 +5713,7 @@ function UsuariosView({ onBack, accessToken, onApproved, adminNombre }) {
       )}
 
       {!loading && !error && comprobantes.length > 0 && (
-        <div className="mb-5">
+        <div id="comprobantes-pendientes" className="mb-5">
           <div className="text-[11px] tracking-widest font-semibold mb-3" style={{ color: C.warningText }}>
             COMPROBANTES DE PAGO ({comprobantes.length})
           </div>
@@ -5437,7 +5824,7 @@ function UsuariosView({ onBack, accessToken, onApproved, adminNombre }) {
         </div>
       )}
 
-      {!loading && !error && pendientes.length > 0 && (
+      {!loading && !error && filtroCategoria === "todos" && pendientes.length > 0 && (
         <div className="mb-5">
           <div className="text-[11px] tracking-widest font-semibold mb-3" style={{ color: C.warningText }}>
             CUENTAS BLOQUEADAS ({pendientes.length})
@@ -5450,15 +5837,16 @@ function UsuariosView({ onBack, accessToken, onApproved, adminNombre }) {
 
       {!loading && !error && (
         <div>
-          {pendientes.length > 0 && (
-            <div className="text-[11px] tracking-widest font-semibold mb-3" style={{ color: C.textDim }}>
-              TODOS LOS USUARIOS ({aprobados.length})
-            </div>
-          )}
+          <div className="text-[11px] tracking-widest font-semibold mb-3" style={{ color: C.textDim }}>
+            {filtroCategoria === "todos" ? `TODOS LOS USUARIOS (${aprobados.length})` : `${usersCategorizados.length} RESULTADO${usersCategorizados.length === 1 ? "" : "S"}`}
+          </div>
           <div className="flex flex-col gap-2">
-            {aprobados.map((u) => renderUserCard(u, false))}
+            {(filtroCategoria === "todos" ? aprobados : usersCategorizados).map((u) => renderUserCard(u, filtroCategoria !== "todos" && u.aprobado === false))}
             {users.length === 0 && (
               <p className="text-sm text-center py-10" style={{ color: C.textDim }}>No hay usuarios cargados todavía.</p>
+            )}
+            {users.length > 0 && usersFiltrados.length > 0 && usersCategorizados.length === 0 && filtroCategoria !== "todos" && (
+              <p className="text-sm text-center py-10" style={{ color: C.textDim }}>Nadie en esta categoría por ahora.</p>
             )}
             {users.length > 0 && usersFiltrados.length === 0 && (
               <p className="text-sm text-center py-10" style={{ color: C.textDim }}>Ningún usuario coincide con "{search}".</p>
