@@ -4714,6 +4714,18 @@ function UserEditForm({ user, onClose, onSaved, accessToken }) {
   const [ultimoComprobante, setUltimoComprobante] = useState(null);
   const [cargandoComprobante, setCargandoComprobante] = useState(true);
   const [viendoComprobante, setViendoComprobante] = useState(false);
+  const [mostrarFechasManual, setMostrarFechasManual] = useState(false);
+  const [renovando, setRenovando] = useState(false);
+  const [mesesElegidos, setMesesElegidos] = useState(null);
+  const [mesesPersonalizado, setMesesPersonalizado] = useState("");
+  const [aplicandoRenovacion, setAplicandoRenovacion] = useState(false);
+  const [renovacionOk, setRenovacionOk] = useState(null);
+  const [bloqueando, setBloqueando] = useState(false);
+  const [motivoBloqueo, setMotivoBloqueo] = useState("Falta de pago");
+  const [notaBloqueo, setNotaBloqueo] = useState("");
+  const [bloqueandoLoading, setBloqueandoLoading] = useState(false);
+  const [motivoBloqueoActual, setMotivoBloqueoActual] = useState(user.motivo_bloqueo || null);
+  const [showHistorial, setShowHistorial] = useState(false);
 
   React.useEffect(() => {
     fetchMyComprobantes(user.id, accessToken)
