@@ -974,6 +974,21 @@ function labelNivel(value) {
   return found ? found.label : "Usuario Prueba";
 }
 
+// Color distintivo por nivel/rol, para identificar de un vistazo en la lista de usuarios.
+function badgeNivelUsuario(u) {
+  if (u.es_admin) return { label: "ADMIN", color: C.blue };
+  if (u.vitalicio) return { label: "VITALICIO", color: "#D946EF" };
+  const colores = {
+    prueba: C.textDim,
+    esencial: "#3FB6FF",
+    trader: "#8B5CF6",
+    pro: "#F0B429",
+    full: C.green,
+  };
+  const nivel = u.nivel_contenido || "prueba";
+  return { label: labelNivel(nivel).toUpperCase(), color: colores[nivel] || C.textDim };
+}
+
 function nivelEfectivoUsuario(profile) {
   if (profile?.es_admin) return 99;
   return rankNivel(profile?.nivel_contenido || "prueba");
@@ -4274,7 +4289,7 @@ function RachaDiaria({ signals }) {
   );
 }
 
-function InicioDashboard({ signals, isAdmin, onOpenSignal, onNuevaSenal, onNavigate, onDesbloquearPro, profile, onOpenBitacora, restringido }) {
+function InicioDashboard({ signals, isAdmin, canManageSignals, onOpenSignal, onNuevaSenal, onNavigate, onDesbloquearPro, profile, onOpenBitacora, restringido }) {
   const ultimasSenales = (signals || []).slice(0, 2);
   const [novedades, setNovedades] = useState([]);
 
@@ -4342,13 +4357,13 @@ function InicioDashboard({ signals, isAdmin, onOpenSignal, onNuevaSenal, onNavig
         </button>
       )}
 
-      {isAdmin && (
+      {canManageSignals && (
         <button
           onClick={onNuevaSenal}
-          className="w-full rounded-2xl py-3.5 mb-4 text-sm font-semibold"
+          className="w-full rounded-2xl py-3.5 mb-4 text-sm font-semibold uppercase"
           style={{ backgroundColor: C.green, color: "#08090B" }}
         >
-          + Registrar operación
+          + Registrar nueva señal
         </button>
       )}
 
@@ -5112,7 +5127,17 @@ function UsuariosView({ onBack, accessToken, onApproved, adminNombre }) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
               <span className="font-semibold text-[13px] truncate" style={{ color: C.text }}>{u.nombre || "Sin nombre"}</span>
-              {u.es_admin && <span className="text-[9px] font-bold px-1 rounded" style={{ backgroundColor: C.blueSoft, color: C.blue }}>ADMIN</span>}
+              {(() => {
+                const b = badgeNivelUsuario(u);
+                return (
+                  <span
+                    className="text-[9px] font-bold px-1 rounded shrink-0"
+                    style={{ backgroundColor: `${b.color}22`, color: b.color }}
+                  >
+                    {b.label}
+                  </span>
+                );
+              })()}
               {nuevosIds.has(u.id) && <span className="text-[9px] font-bold px-1 rounded" style={{ backgroundColor: C.greenSoft, color: C.green }}>NUEVO</span>}
             </div>
             <div className="text-[11px] truncate" style={{ color: C.textDim }}>{u.email}</div>
@@ -5200,14 +5225,25 @@ function UsuariosView({ onBack, accessToken, onApproved, adminNombre }) {
       <ScreenHeader title="Usuarios" onBack={onBack} />
 
       {!loading && !error && users.length > 0 && (
-        <div
-          className="rounded-xl px-4 py-2.5 mb-3 flex items-center gap-2"
-          style={{ backgroundColor: C.greenSoft, border: `1px solid ${C.green}44` }}
-        >
-          <Users size={14} color={C.green} />
-          <span className="text-[12.5px]" style={{ color: C.text }}>
-            <b style={{ color: C.green }}>{nuevosUltimos7Dias}</b> usuario{nuevosUltimos7Dias === 1 ? "" : "s"} nuevo{nuevosUltimos7Dias === 1 ? "" : "s"} en los últimos 7 días
-          </span>
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          <div
+            className="rounded-xl px-3 py-2.5 flex items-center gap-2"
+            style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.border}` }}
+          >
+            <Users size={14} color={C.textDim} />
+            <span className="text-[12.5px]" style={{ color: C.text }}>
+              <b>{users.length}</b> usuario{users.length === 1 ? "" : "s"} en total
+            </span>
+          </div>
+          <div
+            className="rounded-xl px-3 py-2.5 flex items-center gap-2"
+            style={{ backgroundColor: C.greenSoft, border: `1px solid ${C.green}44` }}
+          >
+            <Users size={14} color={C.green} />
+            <span className="text-[12.5px]" style={{ color: C.text }}>
+              <b style={{ color: C.green }}>{nuevosUltimos7Dias}</b> nuevo{nuevosUltimos7Dias === 1 ? "" : "s"} (7 días)
+            </span>
+          </div>
         </div>
       )}
 
@@ -8268,6 +8304,7 @@ export default function App() {
             <InicioDashboard
               signals={signals}
               isAdmin={isAdmin}
+              canManageSignals={canManageSignals}
               profile={session.profile}
               restringido={vencidoBloqueante}
               onOpenSignal={openSignal}
