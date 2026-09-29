@@ -5284,6 +5284,7 @@ function UsuariosView({ onBack, accessToken, onApproved, adminNombre }) {
   const [search, setSearch] = useState("");
   const [nuevosIds, setNuevosIds] = useState(new Set());
   const [filtroCategoria, setFiltroCategoria] = useState("todos");
+  const filtrosScrollRef = useRef(null);
 
   const load = () => {
     setLoading(true);
@@ -5607,29 +5608,45 @@ function UsuariosView({ onBack, accessToken, onApproved, adminNombre }) {
             </div>
           )}
 
-          <div className="flex gap-1.5 overflow-x-auto pb-1 mb-3" style={{ scrollbarWidth: "none" }}>
-            {[
-              { key: "todos", label: "Todos" },
-              { key: "activos", label: "Activos" },
-              { key: "porVencer", label: "Por vencer" },
-              { key: "vencidos", label: "Vencidos" },
-              { key: "vitalicios", label: "Vitalicios" },
-              { key: "bloqueados", label: "Bloqueados" },
-              { key: "admins", label: "Admins" },
-            ].map((f) => (
-              <button
-                key={f.key}
-                onClick={() => setFiltroCategoria(f.key)}
-                className="px-3 py-1.5 rounded-full text-[11.5px] font-medium shrink-0 whitespace-nowrap"
-                style={{
-                  backgroundColor: filtroCategoria === f.key ? C.green : C.cardAlt,
-                  color: filtroCategoria === f.key ? "#08090B" : C.textDim,
-                  border: `1px solid ${filtroCategoria === f.key ? C.green : C.border}`,
-                }}
-              >
-                {f.label}
-              </button>
-            ))}
+          <div className="flex items-center gap-1 mb-3">
+            <button
+              onClick={() => filtrosScrollRef.current?.scrollBy({ left: -120, behavior: "smooth" })}
+              className="flex items-center justify-center w-6 h-6 rounded-full shrink-0"
+              style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.border}` }}
+            >
+              <ChevronLeft size={13} color={C.textDim} />
+            </button>
+            <div ref={filtrosScrollRef} className="flex gap-1.5 overflow-x-auto flex-1" style={{ scrollbarWidth: "none" }}>
+              {[
+                { key: "todos", label: "Todos" },
+                { key: "activos", label: "Activos" },
+                { key: "porVencer", label: "Por vencer" },
+                { key: "vencidos", label: "Vencidos" },
+                { key: "vitalicios", label: "Vitalicios" },
+                { key: "bloqueados", label: "Bloqueados" },
+                { key: "admins", label: "Admins" },
+              ].map((f) => (
+                <button
+                  key={f.key}
+                  onClick={() => setFiltroCategoria(f.key)}
+                  className="px-3 py-1.5 rounded-full text-[11.5px] font-medium shrink-0 whitespace-nowrap"
+                  style={{
+                    backgroundColor: filtroCategoria === f.key ? C.green : C.cardAlt,
+                    color: filtroCategoria === f.key ? "#08090B" : C.textDim,
+                    border: `1px solid ${filtroCategoria === f.key ? C.green : C.border}`,
+                  }}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => filtrosScrollRef.current?.scrollBy({ left: 120, behavior: "smooth" })}
+              className="flex items-center justify-center w-6 h-6 rounded-full shrink-0"
+              style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.border}` }}
+            >
+              <ChevronRight size={13} color={C.textDim} />
+            </button>
           </div>
         </>
       )}
