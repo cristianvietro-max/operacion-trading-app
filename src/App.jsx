@@ -4693,8 +4693,19 @@ function UserEditForm({ user, onClose, onSaved, accessToken }) {
   const [esSenalero, setEsSenalero] = useState(!!user.es_senalero);
   const [nivelContenido, setNivelContenido] = useState(user.nivel_contenido || "prueba");
   const [aprobado, setAprobado] = useState(user.aprobado !== false);
+  const [notasAdmin, setNotasAdmin] = useState(user.notas_admin || "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [ultimoComprobante, setUltimoComprobante] = useState(null);
+  const [cargandoComprobante, setCargandoComprobante] = useState(true);
+  const [viendoComprobante, setViendoComprobante] = useState(false);
+
+  React.useEffect(() => {
+    fetchMyComprobantes(user.id, accessToken)
+      .then((rows) => setUltimoComprobante(rows[0] || null))
+      .catch(() => {})
+      .finally(() => setCargandoComprobante(false));
+  }, [user.id]);
 
   const inputStyle = { backgroundColor: C.cardAlt, color: C.text, border: `1px solid ${C.border}` };
 
@@ -4719,6 +4730,7 @@ function UserEditForm({ user, onClose, onSaved, accessToken }) {
           es_admin: esAdmin,
           es_senalero: esSenalero,
           nivel_contenido: nivelContenido,
+          notas_admin: notasAdmin.trim() || null,
           aprobado,
         },
         accessToken
@@ -4751,6 +4763,42 @@ function UserEditForm({ user, onClose, onSaved, accessToken }) {
         </div>
 
         <p className="text-xs mb-4" style={{ color: C.textDim }}>{user.email}</p>
+
+        {!cargandoComprobante && ultimoComprobante && (
+          <div className="rounded-2xl p-3 mb-4" style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.border}` }}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>ÚLTIMO COMPROBANTE</span>
+              <span
+                className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full"
+                style={{
+                  backgroundColor: ultimoComprobante.estado === "aprobado" ? C.greenSoft : ultimoComprobante.estado === "rechazado" ? C.redSoft : "rgba(240,180,41,0.14)",
+                  color: ultimoComprobante.estado === "aprobado" ? C.green : ultimoComprobante.estado === "rechazado" ? C.red : "#F0B429",
+                }}
+              >
+                {ultimoComprobante.estado}
+              </span>
+            </div>
+            <div className="flex gap-3 items-center">
+              <button onClick={() => setViendoComprobante(true)} className="shrink-0">
+                <img src={ultimoComprobante.imagen_url} alt="Comprobante" className="w-16 h-16 rounded-lg object-cover" />
+              </button>
+              <div className="text-xs" style={{ color: C.textDim }}>
+                <div>
+                  Plan: <span style={{ color: C.text }}>{PLANES_PRO.find((p) => p.id === ultimoComprobante.plan_id)?.label || (ultimoComprobante.plan_meses ? `${ultimoComprobante.plan_meses} meses` : "—")}</span>
+                </div>
+                {ultimoComprobante.metodo_pago && (
+                  <div>Método: <span style={{ color: C.text }}>{ultimoComprobante.metodo_pago === "ars" ? "Pesos ARG" : "USD/USDT"}</span></div>
+                )}
+                <div>
+                  Fecha: <span style={{ color: C.text }}>{ultimoComprobante.created_at ? new Date(ultimoComprobante.created_at).toLocaleDateString("es-AR") : "—"}</span>
+                </div>
+                {ultimoComprobante.motivo_rechazo && (
+                  <div className="mt-0.5" style={{ color: C.red }}>Motivo: {ultimoComprobante.motivo_rechazo}</div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="mb-3">
           <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>NOMBRE</label>
@@ -4848,6 +4896,20 @@ function UserEditForm({ user, onClose, onSaved, accessToken }) {
           </button>
         ))}
 
+        <div className="mt-3">
+          <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>
+            NOTAS INTERNAS (SOLO ADMINS)
+          </label>
+          <textarea
+            value={notasAdmin}
+            onChange={(e) => setNotasAdmin(e.target.value)}
+            rows={3}
+            placeholder="Referencias sobre este usuario, visible solo para admins..."
+            className="w-full mt-1 rounded-xl px-4 py-3 text-sm outline-none resize-none"
+            style={inputStyle}
+          />
+        </div>
+
         {error && <p className="text-sm text-center mt-2" style={{ color: C.red }}>{error}</p>}
 
         <button
@@ -4859,6 +4921,22 @@ function UserEditForm({ user, onClose, onSaved, accessToken }) {
           {saving ? "Guardando..." : "Guardar cambios"}
         </button>
       </div>
+
+      {viendoComprobante && ultimoComprobante && (
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center p-4"
+          style={{ backgroundColor: "rgba(0,0,0,0.85)" }}
+          onClick={(e) => {
+            e.stopPropagation();
+            setViendoComprobante(false);
+          }}
+        >
+          <button onClick={() => setViendoComprobante(false)} className="absolute top-4 right-4">
+            <X size={26} color="#fff" />
+          </button>
+          <img src={ultimoComprobante.imagen_url} alt="Comprobante" className="max-w-full max-h-full rounded-xl" />
+        </div>
+      )}
     </div>
   );
 }
@@ -5061,21 +5139,48 @@ function UsuariosView({ onBack, accessToken, onApproved, adminNombre }) {
   };
 
   const exportarCSV = () => {
-    const headers = ["Nombre", "Email", "ID", "Fecha inicio", "Renovó", "Vence", "Estado", "Admin", "Alumno comunidad", "Discord", "Teléfono"];
+    const headers = [
+      "Nombre",
+      "Email",
+      "ID",
+      "Nivel",
+      "Es admin",
+      "Puede cargar señales",
+      "Vitalicio",
+      "Pagó (al día)",
+      "Alumno comunidad",
+      "Habilitado",
+      "Fecha inicio",
+      "Última renovación",
+      "Vencimiento",
+      "Estado suscripción",
+      "Días para vencer",
+      "Discord",
+      "Teléfono",
+      "Notas internas",
+    ];
     const rows = users.map((u) => {
       const status = computeSubStatus(u);
+      const dias = daysUntilVencimiento(u);
       return [
         u.nombre || "",
         u.email || "",
         u.id || "",
+        labelNivel(u.nivel_contenido),
+        u.es_admin ? "Sí" : "No",
+        u.es_senalero ? "Sí" : "No",
+        u.vitalicio ? "Sí" : "No",
+        u.pago ? "Sí" : "No",
+        u.alumno_comunidad ? "Sí" : "No",
+        u.aprobado !== false ? "Sí" : "No",
         u.fecha_inicio || "",
         u.fecha_renovacion || "",
         u.fecha_vencimiento || "",
         status.label,
-        u.es_admin ? "Sí" : "No",
-        u.alumno_comunidad ? "Sí" : "No",
+        dias != null ? dias : "",
         u.discord_usuario || "",
         u.telefono || "",
+        u.notas_admin || "",
       ];
     });
     const csv = [headers, ...rows]
@@ -6301,12 +6406,18 @@ function BitacoraTradeForm({ trade, accessToken, userId, cuentas, onClose, onSav
       }
       const montoAbs = Math.abs(Number(resultado || 0));
       const resultadoFinal =
-        resultadoTipo === "perdida" ? -montoAbs : resultadoTipo === "ganada" ? montoAbs : Number(resultado || 0);
+        estado === "abierta"
+          ? 0
+          : resultadoTipo === "perdida"
+          ? -montoAbs
+          : resultadoTipo === "ganada"
+          ? montoAbs
+          : Number(resultado || 0);
       const payload = {
         cuenta_id: cuentaId,
         direccion,
         mercado,
-        tipo_orden: resultadoTipo,
+        tipo_orden: estado === "abierta" ? "activa" : resultadoTipo,
         simbolo: simbolo.trim().toUpperCase(),
         estado,
         fecha,
@@ -6401,7 +6512,13 @@ function BitacoraTradeForm({ trade, accessToken, userId, cuentas, onClose, onSav
           <div className="grid grid-cols-2 gap-3 mb-3">
             <div>
               <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>RESULTADO</label>
-              <select value={resultadoTipo} onChange={(e) => setResultadoTipo(e.target.value)} className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none" style={selectStyle}>
+              <select
+                value={resultadoTipo}
+                onChange={(e) => setResultadoTipo(e.target.value)}
+                disabled={estado === "abierta"}
+                className="w-full mt-1 rounded-xl px-4 py-3 text-[15px] outline-none"
+                style={{ ...selectStyle, opacity: estado === "abierta" ? 0.5 : 1 }}
+              >
                 {BITACORA_RESULTADOS.map((t) => (
                   <option key={t.value} value={t.value}>{t.label}</option>
                 ))}
@@ -6445,6 +6562,13 @@ function BitacoraTradeForm({ trade, accessToken, userId, cuentas, onClose, onSav
             </div>
           </div>
 
+          {estado === "abierta" ? (
+            <div className="rounded-xl px-4 py-3" style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.borderSoft}` }}>
+              <p className="text-xs" style={{ color: C.textDim }}>
+                Mientras esté <b>Abierta</b> no se carga monto — no entra en el balance ni en el win rate hasta que la cierres.
+              </p>
+            </div>
+          ) : (
           <div>
             <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>MONTO ($)</label>
             <input
@@ -6461,6 +6585,7 @@ function BitacoraTradeForm({ trade, accessToken, userId, cuentas, onClose, onSav
               Ingresá el monto en positivo — el signo se ajusta solo según lo que elegiste en "Resultado".
             </p>
           </div>
+          )}
         </div>
 
         <div
@@ -6647,16 +6772,20 @@ function BitacoraOperaciones({ trades, cuentas, accessToken, userId, onBack, onC
               <span
                 className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full shrink-0"
                 style={{
-                  backgroundColor: t.tipo_orden === "ganada" ? C.greenSoft : t.tipo_orden === "perdida" ? C.redSoft : C.cardAlt,
-                  color: t.tipo_orden === "ganada" ? C.green : t.tipo_orden === "perdida" ? C.red : C.textDim,
+                  backgroundColor:
+                    t.tipo_orden === "activa" ? C.blueSoft : t.tipo_orden === "ganada" ? C.greenSoft : t.tipo_orden === "perdida" ? C.redSoft : C.cardAlt,
+                  color:
+                    t.tipo_orden === "activa" ? C.blue : t.tipo_orden === "ganada" ? C.green : t.tipo_orden === "perdida" ? C.red : C.textDim,
                 }}
               >
-                {t.tipo_orden === "be" ? "BE" : t.tipo_orden === "ganada" ? "Ganada" : "Perdida"}
+                {t.tipo_orden === "activa" ? "Activa" : t.tipo_orden === "be" ? "BE" : t.tipo_orden === "ganada" ? "Ganada" : "Perdida"}
               </span>
             )}
+            {t.tipo_orden !== "activa" && (
             <div className="font-bold text-[14px] shrink-0" style={{ color: Number(t.resultado) >= 0 ? C.green : C.red }}>
               {Number(t.resultado) >= 0 ? "+" : ""}{formatMoneyAR(t.resultado)}
             </div>
+            )}
           </button>
         ))}
       </div>
@@ -6756,7 +6885,7 @@ function BitacoraCalendario({ trades, onBack, embedded = false }) {
           if (d === null) return <div key={i} />;
           const dayKey = ymd(d);
           const dayTrades = byDay[dayKey] || [];
-          const total = dayTrades.reduce((acc, t) => acc + Number(t.resultado || 0), 0);
+          const total = dayTrades.filter((t) => t.estado !== "abierta").reduce((acc, t) => acc + Number(t.resultado || 0), 0);
           const hasTrades = dayTrades.length > 0;
           const bg = !hasTrades ? "transparent" : total > 0 ? C.greenSoft : total < 0 ? C.redSoft : C.cardAlt;
           const fg = !hasTrades ? C.textDim : total > 0 ? C.green : total < 0 ? C.red : C.textDim;
@@ -6887,7 +7016,7 @@ function formatMoneyAR(n) {
 
 function calcularBalanceCuenta(cuenta, trades, movimientos) {
   const netoTrades = trades
-    .filter((t) => t.cuenta_id === cuenta.id)
+    .filter((t) => t.cuenta_id === cuenta.id && t.estado !== "abierta")
     .reduce((acc, t) => acc + Number(t.resultado || 0), 0);
   const ingresos = movimientos
     .filter((m) => m.cuenta_id === cuenta.id && m.tipo === "ingreso")
@@ -7286,10 +7415,11 @@ function BitacoraDashboard({ trades, cuentas, movimientos, accessToken, userId, 
   const tradesFiltrados =
     selectedCuentaId === "todas" ? trades : trades.filter((t) => String(t.cuenta_id) === String(selectedCuentaId));
 
-  const cerradas = tradesFiltrados.filter((t) => Number(t.resultado) !== 0);
-  const ganadas = tradesFiltrados.filter((t) => Number(t.resultado) > 0).length;
-  const perdidas = tradesFiltrados.filter((t) => Number(t.resultado) < 0).length;
-  const netoTrades = tradesFiltrados.reduce((acc, t) => acc + Number(t.resultado || 0), 0);
+  const tradesResueltos = tradesFiltrados.filter((t) => t.estado !== "abierta");
+  const cerradas = tradesResueltos.filter((t) => Number(t.resultado) !== 0);
+  const ganadas = tradesResueltos.filter((t) => Number(t.resultado) > 0).length;
+  const perdidas = tradesResueltos.filter((t) => Number(t.resultado) < 0).length;
+  const netoTrades = tradesResueltos.reduce((acc, t) => acc + Number(t.resultado || 0), 0);
   const winRate = cerradas.length > 0 ? Math.round((ganadas / cerradas.length) * 100) : 0;
 
   const balanceTotal =
@@ -7301,7 +7431,7 @@ function BitacoraDashboard({ trades, cuentas, movimientos, accessToken, userId, 
         })();
 
   // Curva de capital acumulada (en orden cronológico), sobre el resultado de las operaciones
-  const ordenadas = [...tradesFiltrados].sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+  const ordenadas = tradesFiltrados.filter((t) => t.estado !== "abierta").sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
   let acc = 0;
   const puntos = ordenadas.map((t) => {
     acc += Number(t.resultado || 0);
