@@ -1153,7 +1153,7 @@ const TRADERS = [
   { name: "Lucas Albarello Trader", handle: "@lucas_tradersc", url: "https://www.instagram.com/lucas_tradersc/", avatar: `data:image/jpeg;base64,${AVATAR_LUCAS}`, bio: "Diario de un trader en proceso" },
   { name: "Alison", handle: "@nexus_trading24", url: "https://www.instagram.com/nexus_trading24/", avatar: `data:image/jpeg;base64,${AVATAR_ALISON}`, bio: "" },
   { name: "Humberto", handle: "@humber.franco", url: "https://www.instagram.com/humber.franco/", avatar: `data:image/jpeg;base64,${AVATAR_HUMBERTO}`, bio: "" },
-  { name: "Franco Monteggia", handle: "@franmonteggia", url: "https://www.instagram.com/franmonteggia/", avatar: `data:image/jpeg;base64,${AVATAR_FRANCO}`, bio: "" },
+  { name: "Franco Monteggia", handle: "@fran.trading01", url: "https://www.instagram.com/fran.trading01/", avatar: `data:image/jpeg;base64,${AVATAR_FRANCO}`, bio: "" },
 ];
 
 const NOVEDADES = [
@@ -6720,6 +6720,35 @@ function NodeExplorer({ seccion, rootTitle, isAdmin, onBack, layout = "grid", fi
         )}
       </div>
 
+      {seccion === "automatizaciones" && current.id === null && (
+        <div className="rounded-2xl p-4 mt-4" style={{ backgroundColor: "rgba(240,180,41,0.1)", border: `1px solid ${C.warningBorder}` }}>
+          <p className="text-xs mb-3" style={{ color: C.text }}>
+            Algunos de estos EAs están disponibles solo para usuarios con membresía <b>Trader (3 meses)</b> o superior.
+            Si tenés alguna consulta, contactate con soporte.
+          </p>
+          <div className="flex gap-2">
+            <a
+              href="https://wa.me/59175800153"
+              target="_blank"
+              rel="noreferrer"
+              className="flex-1 text-center rounded-xl py-2.5 text-xs font-semibold"
+              style={{ backgroundColor: "#25D366", color: "#08090B" }}
+            >
+              💬 Soporte
+            </a>
+            {onVerNiveles && (
+              <button
+                onClick={onVerNiveles}
+                className="flex-1 rounded-xl py-2.5 text-xs font-semibold"
+                style={{ backgroundColor: C.green, color: "#08090B" }}
+              >
+                Ver niveles
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {showForm && (
         <NodeForm
           seccion={seccion}
@@ -8205,12 +8234,11 @@ function ComunidadSubView({ onBack }) {
 
 
 function TopBar({ nombre, avatar, isAdmin, pendingCount, pendingComprobantesCount, nuevosUsuariosCount, onOpenAdminAlerts, onOpenConfig, onLogoClick, signals, profile, accessToken, onOpenSignal }) {
-  const [showAlertas, setShowAlertas] = useState(false);
-  const [showNovedadesBell, setShowNovedadesBell] = useState(false);
+  const [showBell, setShowBell] = useState(false);
   const [novedadesFeed, setNovedadesFeed] = useState([]);
   const adminPendingTotal = (pendingCount || 0) + (pendingComprobantesCount || 0) + (nuevosUsuariosCount || 0);
   const fecha = new Date().toLocaleDateString("es-AR", { day: "2-digit", month: "short" });
-  const items = [
+  const adminItems = [
     { key: "pendientes", count: pendingCount, label: "cuenta{s} por aprobar", target: "pendientes" },
     { key: "pagos", count: pendingComprobantesCount, label: "pago{s} pendiente{s} de revisión", target: "comprobantes" },
     { key: "nuevos", count: nuevosUsuariosCount, label: "usuario{s} nuevo{s}", target: "nuevos" },
@@ -8241,10 +8269,11 @@ function TopBar({ nombre, avatar, isAdmin, pendingCount, pendingComprobantesCoun
     .sort((a, b) => b.fecha - a.fecha)
     .slice(0, 8);
   const noLeidosCount = feedCombinado.filter((it) => it.fecha > ultimaVista).length;
+  const totalBadge = (isAdmin ? adminPendingTotal : 0) + noLeidosCount;
 
-  const abrirNovedades = () => {
-    setShowNovedadesBell((v) => !v);
-    if (!showNovedadesBell && noLeidosCount > 0 && profile?.id && accessToken) {
+  const abrirCampana = () => {
+    setShowBell((v) => !v);
+    if (!showBell && noLeidosCount > 0 && profile?.id && accessToken) {
       const ahora = new Date().toISOString();
       setUltimaVistaLocal(ahora);
       updateProfile(profile.id, { ultima_vista_notif: ahora }, accessToken).catch(() => {});
@@ -8270,24 +8299,54 @@ function TopBar({ nombre, avatar, isAdmin, pendingCount, pendingComprobantesCoun
 
       <div className="flex items-center gap-1.5 min-w-0">
         <div className="relative shrink-0">
-          <button onClick={abrirNovedades} className="relative p-1.5 mr-0.5">
+          <button onClick={abrirCampana} className="relative p-1.5 mr-0.5">
             <Bell size={17} color={C.textDim} />
-            {noLeidosCount > 0 && (
+            {totalBadge > 0 && (
               <span
                 className="absolute -top-0.5 -right-0.5 min-w-[15px] h-[15px] px-0.5 rounded-full flex items-center justify-center text-[9px] font-bold"
-                style={{ backgroundColor: C.green, color: "#08090B" }}
+                style={{ backgroundColor: isAdmin && adminPendingTotal > 0 ? "#F0B429" : C.green, color: "#08090B" }}
               >
-                {noLeidosCount > 9 ? "9+" : noLeidosCount}
+                {totalBadge > 9 ? "9+" : totalBadge}
               </span>
             )}
           </button>
-          {showNovedadesBell && (
+          {showBell && (
             <>
-              <div className="fixed inset-0 z-40" onClick={() => setShowNovedadesBell(false)} />
+              <div className="fixed inset-0 z-40" onClick={() => setShowBell(false)} />
               <div
                 className="absolute right-0 top-full mt-2 w-72 max-h-96 overflow-y-auto rounded-2xl p-2 z-50"
                 style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, boxShadow: "0 8px 24px rgba(0,0,0,0.4)" }}
               >
+                {isAdmin && adminItems.length > 0 && (
+                  <>
+                    <div className="text-[10px] tracking-widest font-semibold px-2 py-1" style={{ color: "#F0B429" }}>
+                      REQUIEREN ATENCIÓN
+                    </div>
+                    {adminItems.map((i) => (
+                      <button
+                        key={i.key}
+                        onClick={() => {
+                          setShowBell(false);
+                          onOpenAdminAlerts(i.target);
+                        }}
+                        className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left mb-0.5"
+                        style={{ backgroundColor: "rgba(240,180,41,0.1)" }}
+                      >
+                        <span className="text-[12.5px]" style={{ color: C.text }}>
+                          {i.label.replace(/\{s\}/g, i.count === 1 ? "" : "s")}
+                        </span>
+                        <span
+                          className="text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-2 shrink-0"
+                          style={{ backgroundColor: "#F0B42922", color: "#F0B429" }}
+                        >
+                          {i.count}
+                        </span>
+                      </button>
+                    ))}
+                    <div className="my-1.5 h-px" style={{ backgroundColor: C.borderSoft }} />
+                  </>
+                )}
+
                 <div className="text-[10px] tracking-widest font-semibold px-2 py-1" style={{ color: C.textDim }}>
                   NOVEDADES
                 </div>
@@ -8298,7 +8357,7 @@ function TopBar({ nombre, avatar, isAdmin, pendingCount, pendingComprobantesCoun
                     <button
                       key={it.id}
                       onClick={() => {
-                        setShowNovedadesBell(false);
+                        setShowBell(false);
                         if (it.onClick) it.onClick();
                       }}
                       className="w-full flex items-start gap-2 px-2 py-2 rounded-xl text-left mb-0.5"
@@ -8320,56 +8379,6 @@ function TopBar({ nombre, avatar, isAdmin, pendingCount, pendingComprobantesCoun
             </>
           )}
         </div>
-        {isAdmin && (
-          <div className="relative shrink-0">
-            <button onClick={() => setShowAlertas((v) => !v)} className="relative p-1.5 mr-0.5">
-              <Bell size={17} color={C.textDim} />
-              {adminPendingTotal > 0 && (
-                <span
-                  className="absolute -top-0.5 -right-0.5 min-w-[15px] h-[15px] px-0.5 rounded-full flex items-center justify-center text-[9px] font-bold"
-                  style={{ backgroundColor: "#F0B429", color: "#08090B" }}
-                >
-                  {adminPendingTotal}
-                </span>
-              )}
-            </button>
-            {showAlertas && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setShowAlertas(false)} />
-                <div
-                  className="absolute right-0 top-full mt-2 w-64 rounded-2xl p-2 z-50"
-                  style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, boxShadow: "0 8px 24px rgba(0,0,0,0.4)" }}
-                >
-                  {items.length === 0 ? (
-                    <p className="text-xs text-center py-3" style={{ color: C.textDim }}>Sin novedades por ahora</p>
-                  ) : (
-                    items.map((i) => (
-                      <button
-                        key={i.key}
-                        onClick={() => {
-                          setShowAlertas(false);
-                          onOpenAdminAlerts(i.target);
-                        }}
-                        className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left"
-                        style={{ backgroundColor: C.cardAlt }}
-                      >
-                        <span className="text-[12.5px]" style={{ color: C.text }}>
-                          {i.label.replace(/\{s\}/g, i.count === 1 ? "" : "s")}
-                        </span>
-                        <span
-                          className="text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-2 shrink-0"
-                          style={{ backgroundColor: "#F0B42922", color: "#F0B429" }}
-                        >
-                          {i.count}
-                        </span>
-                      </button>
-                    ))
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-        )}
         <button onClick={onOpenConfig} className="flex items-center gap-1.5 min-w-0">
           <div className="flex flex-col items-end leading-tight min-w-0">
             <span className="text-[10px] font-semibold truncate max-w-[90px]" style={{ color: C.text }}>
