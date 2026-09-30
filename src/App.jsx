@@ -5255,7 +5255,7 @@ function UserEditForm({ user, onClose, onSaved, accessToken }) {
   );
 }
 
-function UsuariosView({ onBack, accessToken, onApproved, adminNombre }) {
+function UsuariosView({ onBack, accessToken, onApproved, adminNombre, scrollTarget, onScrollHandled }) {
   const [users, setUsers] = useState([]);
   const [comprobantes, setComprobantes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -5297,6 +5297,15 @@ function UsuariosView({ onBack, accessToken, onApproved, adminNombre }) {
   const [nuevosIds, setNuevosIds] = useState(new Set());
   const [filtroCategoria, setFiltroCategoria] = useState("todos");
   const filtrosScrollRef = useRef(null);
+
+  React.useEffect(() => {
+    if (!scrollTarget || loading) return;
+    if (scrollTarget === "pendientes") setFiltroCategoria("bloqueados");
+    if (scrollTarget === "comprobantes") {
+      setTimeout(() => document.getElementById("comprobantes-pendientes")?.scrollIntoView({ behavior: "smooth" }), 150);
+    }
+    if (onScrollHandled) onScrollHandled();
+  }, [scrollTarget, loading]);
 
   const load = () => {
     setLoading(true);
@@ -8195,8 +8204,53 @@ function ComunidadSubView({ onBack }) {
 }
 
 
-function TopBar({ nombre, avatar, isAdmin, adminPendingTotal, onOpenAdminAlerts, onOpenConfig, onLogoClick }) {
+function TopBar({ nombre, avatar, isAdmin, pendingCount, pendingComprobantesCount, nuevosUsuariosCount, onOpenAdminAlerts, onOpenConfig, onLogoClick, signals, profile, accessToken, onOpenSignal }) {
+  const [showAlertas, setShowAlertas] = useState(false);
+  const [showNovedadesBell, setShowNovedadesBell] = useState(false);
+  const [novedadesFeed, setNovedadesFeed] = useState([]);
+  const adminPendingTotal = (pendingCount || 0) + (pendingComprobantesCount || 0) + (nuevosUsuariosCount || 0);
   const fecha = new Date().toLocaleDateString("es-AR", { day: "2-digit", month: "short" });
+  const items = [
+    { key: "pendientes", count: pendingCount, label: "cuenta{s} por aprobar", target: "pendientes" },
+    { key: "pagos", count: pendingComprobantesCount, label: "pago{s} pendiente{s} de revisión", target: "comprobantes" },
+    { key: "nuevos", count: nuevosUsuariosCount, label: "usuario{s} nuevo{s}", target: "nuevos" },
+  ].filter((i) => i.count > 0);
+
+  React.useEffect(() => {
+    fetchNovedades().then(setNovedadesFeed).catch(() => {});
+  }, []);
+
+  const [ultimaVistaLocal, setUltimaVistaLocal] = useState(profile?.ultima_vista_notif || null);
+  const ultimaVista = ultimaVistaLocal ? new Date(ultimaVistaLocal) : new Date(0);
+  const feedCombinado = [
+    ...(signals || []).map((s) => ({
+      tipo: "senal",
+      id: `s-${s.id}`,
+      fecha: new Date(s.createdAt),
+      titulo: `${s.par} — ${s.direccion === "venta" ? "Venta" : "Compra"}`,
+      onClick: () => onOpenSignal && onOpenSignal(s),
+    })),
+    ...(novedadesFeed || []).map((n) => ({
+      tipo: n.tipo === "evento" ? "evento" : "novedad",
+      id: `n-${n.id}`,
+      fecha: new Date(n.created_at),
+      titulo: n.titulo,
+    })),
+  ]
+    .filter((it) => !isNaN(it.fecha))
+    .sort((a, b) => b.fecha - a.fecha)
+    .slice(0, 8);
+  const noLeidosCount = feedCombinado.filter((it) => it.fecha > ultimaVista).length;
+
+  const abrirNovedades = () => {
+    setShowNovedadesBell((v) => !v);
+    if (!showNovedadesBell && noLeidosCount > 0 && profile?.id && accessToken) {
+      const ahora = new Date().toISOString();
+      setUltimaVistaLocal(ahora);
+      updateProfile(profile.id, { ultima_vista_notif: ahora }, accessToken).catch(() => {});
+    }
+  };
+
   return (
     <div
       className="sticky top-0 z-30 flex items-center justify-between gap-2 px-3 py-2"
@@ -8215,18 +8269,106 @@ function TopBar({ nombre, avatar, isAdmin, adminPendingTotal, onOpenAdminAlerts,
       </button>
 
       <div className="flex items-center gap-1.5 min-w-0">
-        {isAdmin && (
-          <button onClick={onOpenAdminAlerts} className="relative p-1.5 mr-0.5 shrink-0">
+        <div className="relative shrink-0">
+          <button onClick={abrirNovedades} className="relative p-1.5 mr-0.5">
             <Bell size={17} color={C.textDim} />
-            {adminPendingTotal > 0 && (
+            {noLeidosCount > 0 && (
               <span
                 className="absolute -top-0.5 -right-0.5 min-w-[15px] h-[15px] px-0.5 rounded-full flex items-center justify-center text-[9px] font-bold"
-                style={{ backgroundColor: "#F0B429", color: "#08090B" }}
+                style={{ backgroundColor: C.green, color: "#08090B" }}
               >
-                {adminPendingTotal}
+                {noLeidosCount > 9 ? "9+" : noLeidosCount}
               </span>
             )}
           </button>
+          {showNovedadesBell && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setShowNovedadesBell(false)} />
+              <div
+                className="absolute right-0 top-full mt-2 w-72 max-h-96 overflow-y-auto rounded-2xl p-2 z-50"
+                style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, boxShadow: "0 8px 24px rgba(0,0,0,0.4)" }}
+              >
+                <div className="text-[10px] tracking-widest font-semibold px-2 py-1" style={{ color: C.textDim }}>
+                  NOVEDADES
+                </div>
+                {feedCombinado.length === 0 ? (
+                  <p className="text-xs text-center py-4" style={{ color: C.textDim }}>Todavía no hay novedades</p>
+                ) : (
+                  feedCombinado.map((it) => (
+                    <button
+                      key={it.id}
+                      onClick={() => {
+                        setShowNovedadesBell(false);
+                        if (it.onClick) it.onClick();
+                      }}
+                      className="w-full flex items-start gap-2 px-2 py-2 rounded-xl text-left mb-0.5"
+                      style={{ backgroundColor: it.fecha > ultimaVista ? C.greenSoft : "transparent" }}
+                    >
+                      <span className="text-[13px] shrink-0 mt-0.5">
+                        {it.tipo === "senal" ? "📊" : it.tipo === "evento" ? "📅" : "📣"}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="text-[12.5px] truncate" style={{ color: C.text }}>{it.titulo}</div>
+                        <div className="text-[10px]" style={{ color: C.textDim }}>
+                          {it.fecha.toLocaleDateString("es-AR", { day: "2-digit", month: "short" })}
+                        </div>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </>
+          )}
+        </div>
+        {isAdmin && (
+          <div className="relative shrink-0">
+            <button onClick={() => setShowAlertas((v) => !v)} className="relative p-1.5 mr-0.5">
+              <Bell size={17} color={C.textDim} />
+              {adminPendingTotal > 0 && (
+                <span
+                  className="absolute -top-0.5 -right-0.5 min-w-[15px] h-[15px] px-0.5 rounded-full flex items-center justify-center text-[9px] font-bold"
+                  style={{ backgroundColor: "#F0B429", color: "#08090B" }}
+                >
+                  {adminPendingTotal}
+                </span>
+              )}
+            </button>
+            {showAlertas && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowAlertas(false)} />
+                <div
+                  className="absolute right-0 top-full mt-2 w-64 rounded-2xl p-2 z-50"
+                  style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, boxShadow: "0 8px 24px rgba(0,0,0,0.4)" }}
+                >
+                  {items.length === 0 ? (
+                    <p className="text-xs text-center py-3" style={{ color: C.textDim }}>Sin novedades por ahora</p>
+                  ) : (
+                    items.map((i) => (
+                      <button
+                        key={i.key}
+                        onClick={() => {
+                          setShowAlertas(false);
+                          onOpenAdminAlerts(i.target);
+                        }}
+                        className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left"
+                        style={{ backgroundColor: C.cardAlt }}
+                      >
+                        <span className="text-[12.5px]" style={{ color: C.text }}>
+                          {i.label.replace(/\{s\}/g, i.count === 1 ? "" : "s")}
+                        </span>
+                        <span
+                          className="text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-2 shrink-0"
+                          style={{ backgroundColor: "#F0B42922", color: "#F0B429" }}
+                        >
+                          {i.count}
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         )}
         <button onClick={onOpenConfig} className="flex items-center gap-1.5 min-w-0">
           <div className="flex flex-col items-end leading-tight min-w-0">
@@ -8299,6 +8441,7 @@ export default function App() {
   const [session, setSession] = useState(null); // { accessToken, userId, profile }
   const [restoringSession, setRestoringSession] = useState(true);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [usuariosScrollTarget, setUsuariosScrollTarget] = useState(null);
   const exitingRef = useRef(false);
   const popHandlerRef = useRef(null);
 
@@ -8582,8 +8725,17 @@ export default function App() {
         nombre={nombre}
         avatar={avatar}
         isAdmin={isAdmin}
-        adminPendingTotal={pendingCount + pendingComprobantesCount + nuevosUsuariosCount}
-        onOpenAdminAlerts={() => setSpecialView("usuarios")}
+        pendingCount={pendingCount}
+        pendingComprobantesCount={pendingComprobantesCount}
+        nuevosUsuariosCount={nuevosUsuariosCount}
+        signals={signals}
+        profile={session.profile}
+        accessToken={session.accessToken}
+        onOpenSignal={openSignal}
+        onOpenAdminAlerts={(target) => {
+          setUsuariosScrollTarget(target || null);
+          setSpecialView("usuarios");
+        }}
         onOpenConfig={() => setSpecialView("config")}
         onLogoClick={goHome}
       />
@@ -8805,6 +8957,8 @@ export default function App() {
               accessToken={session.accessToken}
               onApproved={() => refreshPendingCount(session.accessToken)}
               adminNombre={session.profile?.nombre || session.profile?.email || "Admin"}
+              scrollTarget={usuariosScrollTarget}
+              onScrollHandled={() => setUsuariosScrollTarget(null)}
             />
           )}
           {tab === "mas" && masSection === "administracion" && isAdmin && adminPanelView === "flyer" && (
@@ -8923,6 +9077,8 @@ export default function App() {
               accessToken={session.accessToken}
               onApproved={() => refreshPendingCount(session.accessToken)}
               adminNombre={session.profile?.nombre || session.profile?.email || "Admin"}
+              scrollTarget={usuariosScrollTarget}
+              onScrollHandled={() => setUsuariosScrollTarget(null)}
             />
           )}
           {specialView === "planes" && (
