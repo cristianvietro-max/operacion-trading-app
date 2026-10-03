@@ -453,6 +453,15 @@ async function fetchPendingComprobantes(accessToken) {
   return res.json();
 }
 
+async function fetchAllComprobantes(accessToken) {
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/comprobantes_pago?select=*&order=created_at.desc`,
+    { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${accessToken}` } }
+  );
+  if (!res.ok) throw new Error("No se pudieron cargar los pagos");
+  return res.json();
+}
+
 async function updateComprobante(id, payload, accessToken) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/comprobantes_pago?id=eq.${id}`, {
     method: "PATCH",
@@ -5296,6 +5305,7 @@ function UsuariosView({ onBack, accessToken, onApproved, adminNombre, scrollTarg
   const [search, setSearch] = useState("");
   const [nuevosIds, setNuevosIds] = useState(new Set());
   const [filtroCategoria, setFiltroCategoria] = useState("todos");
+  const [ordenUsuarios, setOrdenUsuarios] = useState("recientes");
   const filtrosScrollRef = useRef(null);
 
   React.useEffect(() => {
@@ -5331,13 +5341,21 @@ function UsuariosView({ onBack, accessToken, onApproved, adminNombre, scrollTarg
   }, []);
 
   const searchLower = search.trim().toLowerCase();
-  const usersFiltrados = searchLower
+  const usersBuscados = searchLower
     ? users.filter(
         (u) =>
           (u.nombre || "").toLowerCase().includes(searchLower) ||
           (u.email || "").toLowerCase().includes(searchLower)
       )
     : users;
+
+  const usersFiltrados = [...usersBuscados].sort((a, b) => {
+    if (ordenUsuarios === "nombre") {
+      return (a.nombre || a.email || "").localeCompare(b.nombre || b.email || "", "es", { sensitivity: "base" });
+    }
+    // "recientes": los agregados más nuevo primero (ya viene así de la base, esto lo asegura igual)
+    return new Date(b.fecha_inicio || 0) - new Date(a.fecha_inicio || 0);
+  });
 
   const pendientes = usersFiltrados.filter((u) => u.aprobado === false);
   const aprobados = usersFiltrados.filter((u) => u.aprobado !== false);
@@ -5716,7 +5734,7 @@ function UsuariosView({ onBack, accessToken, onApproved, adminNombre, scrollTarg
       )}
 
       {!loading && !error && users.length > 0 && (
-        <div className="relative mb-3">
+        <div className="relative mb-2">
           <Search size={15} color={C.textDim} className="absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             value={search}
@@ -5725,6 +5743,29 @@ function UsuariosView({ onBack, accessToken, onApproved, adminNombre, scrollTarg
             className="w-full rounded-xl pl-9 pr-3 py-2.5 text-sm outline-none"
             style={{ backgroundColor: C.cardAlt, color: C.text, border: `1px solid ${C.border}` }}
           />
+        </div>
+      )}
+
+      {!loading && !error && users.length > 0 && (
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-[11px]" style={{ color: C.textDim }}>Ordenar:</span>
+          {[
+            { key: "recientes", label: "Últimos agregados" },
+            { key: "nombre", label: "Nombre (A-Z)" },
+          ].map((o) => (
+            <button
+              key={o.key}
+              onClick={() => setOrdenUsuarios(o.key)}
+              className="px-2.5 py-1 rounded-full text-[11px] font-medium"
+              style={{
+                backgroundColor: ordenUsuarios === o.key ? C.green : C.cardAlt,
+                color: ordenUsuarios === o.key ? "#08090B" : C.textDim,
+                border: `1px solid ${ordenUsuarios === o.key ? C.green : C.border}`,
+              }}
+            >
+              {o.label}
+            </button>
+          ))}
         </div>
       )}
 
@@ -6501,6 +6542,198 @@ function HistorialComprobantesModal({ userId, accessToken, onClose }) {
           })}
         </div>
       </div>
+    </div>
+  );
+}
+
+function DashboardPagosView({ onBack, accessToken }) {
+  const [comprobantes, setComprobantes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  React.useEffect(() => {
+    fetchAllComprobantes(accessToken)
+      .then(setComprobantes)
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const planDe = (c) => PLANES_PRO.find((p) => p.id === c.plan_id) || PLANES_PRO.find((p) => p.meses === c.plan_meses);
+  const precioDe = (c) => planDe(c)?.precio || 0;
+  const planLabelDe = (c) => planDe(c)?.label || "Sin plan";
+
+  const aprobados = comprobantes.filter((c) => c.estado === "aprobado");
+  const rechazados = comprobantes.filter((c) => c.estado === "rechazado");
+  const pendientes = comprobantes.filter((c) => c.estado === "pendiente");
+
+  const totalRecaudado = aprobados.reduce((acc, c) => acc + precioDe(c), 0);
+  const ticketProm = aprobados.length ? totalRecaudado / aprobados.length : 0;
+  const decisivos = aprobados.length + rechazados.length;
+  const tasaAprobacion = decisivos > 0 ? Math.round((aprobados.length / decisivos) * 100) : null;
+
+  const porPlanMap = {};
+  aprobados.forEach((c) => {
+    const label = planLabelDe(c);
+    if (!porPlanMap[label]) porPlanMap[label] = { count: 0, total: 0 };
+    porPlanMap[label].count++;
+    porPlanMap[label].total += precioDe(c);
+  });
+  const porPlanArr = Object.entries(porPlanMap)
+    .map(([label, v]) => ({ label, ...v }))
+    .sort((a, b) => b.total - a.total);
+
+  const porMetodo = { ars: { count: 0, total: 0 }, usd: { count: 0, total: 0 }, sinDato: { count: 0, total: 0 } };
+  aprobados.forEach((c) => {
+    const key = c.metodo_pago === "ars" ? "ars" : c.metodo_pago === "usd" ? "usd" : "sinDato";
+    porMetodo[key].count++;
+    porMetodo[key].total += precioDe(c);
+  });
+
+  const hoy = new Date();
+  const meses = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+    meses.push({
+      key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+      label: d.toLocaleDateString("es-AR", { month: "short" }),
+      total: 0,
+      count: 0,
+    });
+  }
+  aprobados.forEach((c) => {
+    const fecha = c.fecha_decision || c.created_at;
+    if (!fecha) return;
+    const d = new Date(fecha);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const mes = meses.find((m) => m.key === key);
+    if (mes) {
+      mes.total += precioDe(c);
+      mes.count++;
+    }
+  });
+  const maxMes = Math.max(1, ...meses.map((m) => m.total));
+  const cardStyle = { backgroundColor: C.card, border: `1px solid ${C.border}` };
+  const fmt = (n) => Math.round(n).toLocaleString("es-AR");
+
+  return (
+    <div className="max-w-md mx-auto">
+      <ScreenHeader title="Dashboard de Pagos" onBack={onBack} />
+
+      {loading && <p className="text-sm text-center py-10" style={{ color: C.textDim }}>Cargando...</p>}
+      {error && <p className="text-sm text-center py-10" style={{ color: C.red }}>{error}</p>}
+
+      {!loading && !error && (
+        <>
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <div className="rounded-2xl p-3" style={cardStyle}>
+              <div className="text-[10px] tracking-wide font-medium mb-1" style={{ color: C.textDim }}>TOTAL RECAUDADO</div>
+              <div className="text-lg font-bold" style={{ color: C.green }}>${fmt(totalRecaudado)}</div>
+              <div className="text-[10px]" style={{ color: C.textDim }}>USD/USDT</div>
+            </div>
+            <div className="rounded-2xl p-3" style={cardStyle}>
+              <div className="text-[10px] tracking-wide font-medium mb-1" style={{ color: C.textDim }}>PAGOS APROBADOS</div>
+              <div className="text-lg font-bold" style={{ color: C.text }}>{aprobados.length}</div>
+              <div className="text-[10px]" style={{ color: C.textDim }}>{pendientes.length} pendiente{pendientes.length === 1 ? "" : "s"}</div>
+            </div>
+            <div className="rounded-2xl p-3" style={cardStyle}>
+              <div className="text-[10px] tracking-wide font-medium mb-1" style={{ color: C.textDim }}>TICKET PROMEDIO</div>
+              <div className="text-lg font-bold" style={{ color: C.text }}>${fmt(ticketProm)}</div>
+              <div className="text-[10px]" style={{ color: C.textDim }}>por pago aprobado</div>
+            </div>
+            <div className="rounded-2xl p-3" style={cardStyle}>
+              <div className="text-[10px] tracking-wide font-medium mb-1" style={{ color: C.textDim }}>TASA DE APROBACIÓN</div>
+              <div className="text-lg font-bold" style={{ color: C.text }}>{tasaAprobacion != null ? `${tasaAprobacion}%` : "—"}</div>
+              <div className="text-[10px]" style={{ color: C.textDim }}>{rechazados.length} rechazado{rechazados.length === 1 ? "" : "s"}</div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl p-4 mb-4" style={cardStyle}>
+            <div className="text-[11px] tracking-wide font-medium mb-3" style={{ color: C.textDim }}>EVOLUCIÓN (ÚLTIMOS 6 MESES)</div>
+            <div className="flex items-end justify-between gap-1.5" style={{ height: 130 }}>
+              {meses.map((m) => (
+                <div key={m.key} className="flex-1 flex flex-col items-center justify-end gap-1" style={{ height: "100%" }}>
+                  <span className="text-[8.5px] whitespace-nowrap" style={{ color: C.textDim }}>
+                    {m.total > 0 ? `$${fmt(m.total)}` : ""}
+                  </span>
+                  <div
+                    className="w-full rounded-t-md"
+                    style={{ height: `${Math.max(3, (m.total / maxMes) * 85)}px`, backgroundColor: m.total > 0 ? C.green : C.borderSoft }}
+                  />
+                  <span className="text-[10px]" style={{ color: C.textDim }}>{m.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-2xl p-4 mb-4" style={cardStyle}>
+            <div className="text-[11px] tracking-wide font-medium mb-3" style={{ color: C.textDim }}>INGRESOS POR PLAN</div>
+            {porPlanArr.length === 0 ? (
+              <p className="text-xs" style={{ color: C.textDim }}>Todavía no hay pagos aprobados.</p>
+            ) : (
+              porPlanArr.map((p) => (
+                <div key={p.label} className="mb-3 last:mb-0">
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span style={{ color: C.text }}>{p.label}</span>
+                    <span style={{ color: C.green }}>
+                      ${fmt(p.total)} · {p.count} pago{p.count === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                  <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: C.cardAlt }}>
+                    <div
+                      className="h-1.5 rounded-full"
+                      style={{ width: `${totalRecaudado > 0 ? (p.total / totalRecaudado) * 100 : 0}%`, backgroundColor: C.green }}
+                    />
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="rounded-2xl p-4 mb-4" style={cardStyle}>
+            <div className="text-[11px] tracking-wide font-medium mb-3" style={{ color: C.textDim }}>POR MÉTODO DE PAGO</div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <div className="text-xs mb-0.5" style={{ color: C.textDim }}>🇦🇷 Pesos ARG</div>
+                <div className="text-[15px] font-bold" style={{ color: C.text }}>${fmt(porMetodo.ars.total)}</div>
+                <div className="text-[10px]" style={{ color: C.textDim }}>{porMetodo.ars.count} pago{porMetodo.ars.count === 1 ? "" : "s"}</div>
+              </div>
+              <div>
+                <div className="text-xs mb-0.5" style={{ color: C.textDim }}>💵 USD/USDT</div>
+                <div className="text-[15px] font-bold" style={{ color: C.text }}>${fmt(porMetodo.usd.total)}</div>
+                <div className="text-[10px]" style={{ color: C.textDim }}>{porMetodo.usd.count} pago{porMetodo.usd.count === 1 ? "" : "s"}</div>
+              </div>
+            </div>
+            {porMetodo.sinDato.count > 0 && (
+              <p className="text-[10px] mt-2" style={{ color: C.textDim }}>
+                {porMetodo.sinDato.count} pago{porMetodo.sinDato.count === 1 ? "" : "s"} sin método registrado (anteriores a esta función).
+              </p>
+            )}
+          </div>
+
+          <div className="rounded-2xl p-4 mb-4" style={cardStyle}>
+            <div className="text-[11px] tracking-wide font-medium mb-3" style={{ color: C.textDim }}>ÚLTIMOS PAGOS APROBADOS</div>
+            {aprobados.length === 0 ? (
+              <p className="text-xs" style={{ color: C.textDim }}>Todavía no hay pagos aprobados.</p>
+            ) : (
+              aprobados.slice(0, 8).map((c) => (
+                <div key={c.id} className="flex items-center justify-between py-2" style={{ borderBottom: `1px solid ${C.borderSoft}` }}>
+                  <div>
+                    <div className="text-xs" style={{ color: C.text }}>{planLabelDe(c)}</div>
+                    <div className="text-[10px]" style={{ color: C.textDim }}>
+                      {c.fecha_decision ? new Date(c.fecha_decision).toLocaleDateString("es-AR") : "—"}
+                    </div>
+                  </div>
+                  <span className="text-xs font-semibold" style={{ color: C.green }}>${fmt(precioDe(c))}</span>
+                </div>
+              ))
+            )}
+          </div>
+
+          <p className="text-[10px] text-center mb-2" style={{ color: C.textDim }}>
+            Los montos se calculan con el precio de catálogo de cada plan (en USD/USDT), tanto si se pagó en pesos como en USD/USDT.
+          </p>
+        </>
+      )}
     </div>
   );
 }
@@ -8314,7 +8547,7 @@ function TopBar({ nombre, avatar, isAdmin, pendingCount, pendingComprobantesCoun
             <>
               <div className="fixed inset-0 z-40" onClick={() => setShowBell(false)} />
               <div
-                className="absolute right-0 top-full mt-2 w-72 max-h-96 overflow-y-auto rounded-2xl p-2 z-50"
+                className="fixed top-14 right-3 w-72 max-w-[calc(100vw-24px)] max-h-96 overflow-y-auto rounded-2xl p-2 z-50"
                 style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, boxShadow: "0 8px 24px rgba(0,0,0,0.4)" }}
               >
                 {isAdmin && adminItems.length > 0 && (
@@ -8954,6 +9187,14 @@ export default function App() {
                   <ImageIcon size={20} color={C.green} />
                   <span className="font-medium text-[13px] leading-tight" style={{ color: C.text }}>Flyer / Promociones</span>
                 </button>
+                <button
+                  onClick={() => setAdminPanelView("dashboard-pagos")}
+                  className="h-28 rounded-2xl px-3 flex flex-col items-center justify-center gap-2 text-center"
+                  style={{ backgroundColor: C.card, border: `1px solid ${C.border}` }}
+                >
+                  <TrendingUp size={20} color={C.green} />
+                  <span className="font-medium text-[13px] leading-tight" style={{ color: C.text }}>Dashboard de pagos</span>
+                </button>
               </div>
               <p className="text-[11px] text-center mt-4" style={{ color: C.textDim }}>
                 Vamos a sumar más paneles administrativos acá a medida que los definamos.
@@ -8972,6 +9213,9 @@ export default function App() {
           )}
           {tab === "mas" && masSection === "administracion" && isAdmin && adminPanelView === "flyer" && (
             <FlyerAdminView onBack={() => setAdminPanelView(null)} accessToken={session.accessToken} />
+          )}
+          {tab === "mas" && masSection === "administracion" && isAdmin && adminPanelView === "dashboard-pagos" && (
+            <DashboardPagosView onBack={() => setAdminPanelView(null)} accessToken={session.accessToken} />
           )}
 
           {tab === "mas" && masSection === "formacion" && (
