@@ -6548,12 +6548,22 @@ function HistorialComprobantesModal({ userId, accessToken, onClose }) {
 
 function DashboardPagosView({ onBack, accessToken }) {
   const [comprobantes, setComprobantes] = useState([]);
+  const [usersMap, setUsersMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [planDetalle, setPlanDetalle] = useState(null);
+  const [vistaPC, setVistaPC] = useState(false);
 
   React.useEffect(() => {
-    fetchAllComprobantes(accessToken)
-      .then(setComprobantes)
+    Promise.all([fetchAllComprobantes(accessToken), fetchAllProfiles(accessToken)])
+      .then(([comps, users]) => {
+        setComprobantes(comps);
+        const map = {};
+        users.forEach((u) => {
+          map[u.id] = u;
+        });
+        setUsersMap(map);
+      })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
@@ -6561,6 +6571,7 @@ function DashboardPagosView({ onBack, accessToken }) {
   const planDe = (c) => PLANES_PRO.find((p) => p.id === c.plan_id) || PLANES_PRO.find((p) => p.meses === c.plan_meses);
   const precioDe = (c) => planDe(c)?.precio || 0;
   const planLabelDe = (c) => planDe(c)?.label || "Sin plan";
+  const nombreDe = (c) => usersMap[c.usuario_id]?.nombre || usersMap[c.usuario_id]?.email || "Usuario desconocido";
 
   const aprobados = comprobantes.filter((c) => c.estado === "aprobado");
   const rechazados = comprobantes.filter((c) => c.estado === "rechazado");
@@ -6615,9 +6626,30 @@ function DashboardPagosView({ onBack, accessToken }) {
   const cardStyle = { backgroundColor: C.card, border: `1px solid ${C.border}` };
   const fmt = (n) => Math.round(n).toLocaleString("es-AR");
 
+  if (vistaPC) {
+    return (
+      <DashboardPagosPC
+        comprobantes={comprobantes}
+        usersMap={usersMap}
+        onBack={() => setVistaPC(false)}
+        accessToken={accessToken}
+      />
+    );
+  }
+
   return (
     <div className="max-w-md mx-auto">
       <ScreenHeader title="Dashboard de Pagos" onBack={onBack} />
+
+      {!loading && !error && (
+        <button
+          onClick={() => setVistaPC(true)}
+          className="w-full rounded-2xl py-3 mb-4 text-sm font-semibold flex items-center justify-center gap-2"
+          style={{ backgroundColor: C.cardAlt, border: `1px solid ${C.border}`, color: C.text }}
+        >
+          🖥️ Ver en versión PC (filtros, tabla completa, exportar)
+        </button>
+      )}
 
       {loading && <p className="text-sm text-center py-10" style={{ color: C.textDim }}>Cargando...</p>}
       {error && <p className="text-sm text-center py-10" style={{ color: C.red }}>{error}</p>}
@@ -6671,10 +6703,10 @@ function DashboardPagosView({ onBack, accessToken }) {
               <p className="text-xs" style={{ color: C.textDim }}>Todavía no hay pagos aprobados.</p>
             ) : (
               porPlanArr.map((p) => (
-                <div key={p.label} className="mb-3 last:mb-0">
+                <button key={p.label} onClick={() => setPlanDetalle({ tipo: "plan", valor: p.label, titulo: `Pagos de ${p.label}` })} className="w-full text-left mb-3 last:mb-0">
                   <div className="flex items-center justify-between text-xs mb-1">
                     <span style={{ color: C.text }}>{p.label}</span>
-                    <span style={{ color: C.green }}>
+                    <span className="underline" style={{ color: C.green }}>
                       ${fmt(p.total)} · {p.count} pago{p.count === 1 ? "" : "s"}
                     </span>
                   </div>
@@ -6684,43 +6716,60 @@ function DashboardPagosView({ onBack, accessToken }) {
                       style={{ width: `${totalRecaudado > 0 ? (p.total / totalRecaudado) * 100 : 0}%`, backgroundColor: C.green }}
                     />
                   </div>
-                </div>
+                </button>
               ))
             )}
           </div>
 
           <div className="rounded-2xl p-4 mb-4" style={cardStyle}>
-            <div className="text-[11px] tracking-wide font-medium mb-3" style={{ color: C.textDim }}>POR MÉTODO DE PAGO</div>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>POR MÉTODO DE PAGO</span>
+            </div>
+            <p className="text-[10px] mb-3" style={{ color: C.textDim }}>
+              No guardamos el monto exacto cobrado en pesos, así que esto muestra cuántos pagos entraron por cada medio y
+              cuánto valen esos planes en USD/USDT de catálogo (no es "pesos recibidos").
+            </p>
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <div className="text-xs mb-0.5" style={{ color: C.textDim }}>🇦🇷 Pesos ARG</div>
-                <div className="text-[15px] font-bold" style={{ color: C.text }}>${fmt(porMetodo.ars.total)}</div>
-                <div className="text-[10px]" style={{ color: C.textDim }}>{porMetodo.ars.count} pago{porMetodo.ars.count === 1 ? "" : "s"}</div>
-              </div>
-              <div>
-                <div className="text-xs mb-0.5" style={{ color: C.textDim }}>💵 USD/USDT</div>
-                <div className="text-[15px] font-bold" style={{ color: C.text }}>${fmt(porMetodo.usd.total)}</div>
-                <div className="text-[10px]" style={{ color: C.textDim }}>{porMetodo.usd.count} pago{porMetodo.usd.count === 1 ? "" : "s"}</div>
-              </div>
+              <button onClick={() => setPlanDetalle({ tipo: "metodo", valor: "ars", titulo: "Pagos por Tiendup (pesos ARG)" })} className="text-left">
+                <div className="text-xs mb-0.5" style={{ color: C.textDim }}>🇦🇷 Tiendup (pesos)</div>
+                <div className="text-[15px] font-bold" style={{ color: C.text }}>{porMetodo.ars.count} pago{porMetodo.ars.count === 1 ? "" : "s"}</div>
+                <div className="text-[10px]" style={{ color: C.textDim }}>valor catálogo: ${fmt(porMetodo.ars.total)}</div>
+              </button>
+              <button onClick={() => setPlanDetalle({ tipo: "metodo", valor: "usd", titulo: "Pagos por Hotmart (USD/USDT)" })} className="text-left">
+                <div className="text-xs mb-0.5" style={{ color: C.textDim }}>💵 Hotmart (USD/USDT)</div>
+                <div className="text-[15px] font-bold" style={{ color: C.text }}>{porMetodo.usd.count} pago{porMetodo.usd.count === 1 ? "" : "s"}</div>
+                <div className="text-[10px]" style={{ color: C.textDim }}>${fmt(porMetodo.usd.total)} reales</div>
+              </button>
             </div>
             {porMetodo.sinDato.count > 0 && (
-              <p className="text-[10px] mt-2" style={{ color: C.textDim }}>
-                {porMetodo.sinDato.count} pago{porMetodo.sinDato.count === 1 ? "" : "s"} sin método registrado (anteriores a esta función).
-              </p>
+              <button
+                onClick={() => setPlanDetalle({ tipo: "metodo", valor: "sinDato", titulo: "Pagos sin método registrado" })}
+                className="text-[10px] mt-2 underline"
+                style={{ color: C.textDim }}
+              >
+                {porMetodo.sinDato.count} pago{porMetodo.sinDato.count === 1 ? "" : "s"} sin método registrado (de antes de esta función) →
+              </button>
             )}
           </div>
 
           <div className="rounded-2xl p-4 mb-4" style={cardStyle}>
-            <div className="text-[11px] tracking-wide font-medium mb-3" style={{ color: C.textDim }}>ÚLTIMOS PAGOS APROBADOS</div>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>ÚLTIMOS PAGOS APROBADOS</span>
+              {aprobados.length > 8 && (
+                <button onClick={() => setPlanDetalle({ tipo: "todos", titulo: "Todos los pagos aprobados" })} className="text-[10px] font-semibold" style={{ color: C.green }}>
+                  Ver todos
+                </button>
+              )}
+            </div>
             {aprobados.length === 0 ? (
               <p className="text-xs" style={{ color: C.textDim }}>Todavía no hay pagos aprobados.</p>
             ) : (
               aprobados.slice(0, 8).map((c) => (
                 <div key={c.id} className="flex items-center justify-between py-2" style={{ borderBottom: `1px solid ${C.borderSoft}` }}>
                   <div>
-                    <div className="text-xs" style={{ color: C.text }}>{planLabelDe(c)}</div>
+                    <div className="text-xs" style={{ color: C.text }}>{nombreDe(c)}</div>
                     <div className="text-[10px]" style={{ color: C.textDim }}>
-                      {c.fecha_decision ? new Date(c.fecha_decision).toLocaleDateString("es-AR") : "—"}
+                      {planLabelDe(c)} · {c.fecha_decision ? new Date(c.fecha_decision).toLocaleDateString("es-AR") : "—"}
                     </div>
                   </div>
                   <span className="text-xs font-semibold" style={{ color: C.green }}>${fmt(precioDe(c))}</span>
@@ -6733,6 +6782,609 @@ function DashboardPagosView({ onBack, accessToken }) {
             Los montos se calculan con el precio de catálogo de cada plan (en USD/USDT), tanto si se pagó en pesos como en USD/USDT.
           </p>
         </>
+      )}
+
+      {planDetalle && (
+        <DetallePagosModal
+          titulo={planDetalle.titulo}
+          pagos={
+            planDetalle.tipo === "plan"
+              ? aprobados.filter((c) => planLabelDe(c) === planDetalle.valor)
+              : planDetalle.tipo === "metodo"
+              ? aprobados.filter((c) =>
+                  planDetalle.valor === "sinDato" ? !["ars", "usd"].includes(c.metodo_pago) : c.metodo_pago === planDetalle.valor
+                )
+              : aprobados
+          }
+          nombreDe={nombreDe}
+          planLabelDe={planLabelDe}
+          precioDe={precioDe}
+          onClose={() => setPlanDetalle(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function DetallePagosModal({ titulo, pagos, nombreDe, planLabelDe, precioDe, onClose }) {
+  const [verImagen, setVerImagen] = useState(null);
+  const total = pagos.reduce((acc, c) => acc + precioDe(c), 0);
+  return (
+    <div className="fixed inset-0 z-[90] flex items-end justify-center" style={{ backgroundColor: "rgba(0,0,0,0.6)" }} onClick={onClose}>
+      <div
+        className="rounded-t-3xl w-full max-w-md p-5 max-h-[80vh] overflow-y-auto"
+        style={{ backgroundColor: C.card, border: `1px solid ${C.border}`, borderBottom: "none" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-[15px] font-semibold" style={{ color: C.text }}>{titulo}</span>
+          <button onClick={onClose}>
+            <X size={20} color={C.textDim} />
+          </button>
+        </div>
+        <p className="text-xs mb-4" style={{ color: C.textDim }}>
+          {pagos.length} pago{pagos.length === 1 ? "" : "s"} · ${Math.round(total).toLocaleString("es-AR")} USD/USDT
+        </p>
+        {pagos.length === 0 ? (
+          <p className="text-sm text-center py-8" style={{ color: C.textDim }}>No hay pagos acá.</p>
+        ) : (
+          pagos.map((c) => (
+            <div key={c.id} className="flex items-center gap-3 py-2.5" style={{ borderBottom: `1px solid ${C.borderSoft}` }}>
+              {c.imagen_url && (
+                <button onClick={() => setVerImagen(c.imagen_url)} className="shrink-0">
+                  <img src={c.imagen_url} alt="Comprobante" className="w-10 h-10 rounded-lg object-cover" />
+                </button>
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="text-xs truncate" style={{ color: C.text }}>{nombreDe(c)}</div>
+                <div className="text-[10px]" style={{ color: C.textDim }}>
+                  {planLabelDe(c)} · {c.fecha_decision ? new Date(c.fecha_decision).toLocaleDateString("es-AR") : "—"}
+                </div>
+              </div>
+              <span className="text-xs font-semibold shrink-0" style={{ color: C.green }}>${Math.round(precioDe(c))}</span>
+            </div>
+          ))
+        )}
+      </div>
+      {verImagen && (
+        <div
+          className="fixed inset-0 z-[95] flex items-center justify-center p-4"
+          style={{ backgroundColor: "rgba(0,0,0,0.9)" }}
+          onClick={(e) => {
+            e.stopPropagation();
+            setVerImagen(null);
+          }}
+        >
+          <img src={verImagen} alt="Comprobante" className="max-w-full max-h-full rounded-xl" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+const PERIODOS_DASH = [
+  { key: "todo", label: "Todo" },
+  { key: "hoy", label: "Hoy" },
+  { key: "7d", label: "7 días" },
+  { key: "30d", label: "30 días" },
+  { key: "mes", label: "Este mes" },
+  { key: "mesAnterior", label: "Mes anterior" },
+  { key: "6m", label: "6 meses" },
+  { key: "anio", label: "Año" },
+  { key: "personalizado", label: "Personalizado" },
+];
+
+function rangoDePeriodo(periodo, desde, hasta) {
+  const hoy = new Date();
+  hoy.setHours(23, 59, 59, 999);
+  const inicioHoy = new Date();
+  inicioHoy.setHours(0, 0, 0, 0);
+  if (periodo === "hoy") return [inicioHoy, hoy];
+  if (periodo === "7d") {
+    const d = new Date(inicioHoy);
+    d.setDate(d.getDate() - 6);
+    return [d, hoy];
+  }
+  if (periodo === "30d") {
+    const d = new Date(inicioHoy);
+    d.setDate(d.getDate() - 29);
+    return [d, hoy];
+  }
+  if (periodo === "mes") {
+    return [new Date(hoy.getFullYear(), hoy.getMonth(), 1), hoy];
+  }
+  if (periodo === "mesAnterior") {
+    const ini = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
+    const fin = new Date(hoy.getFullYear(), hoy.getMonth(), 0, 23, 59, 59);
+    return [ini, fin];
+  }
+  if (periodo === "6m") {
+    const d = new Date(hoy.getFullYear(), hoy.getMonth() - 5, 1);
+    return [d, hoy];
+  }
+  if (periodo === "anio") {
+    return [new Date(hoy.getFullYear(), 0, 1), hoy];
+  }
+  if (periodo === "personalizado" && desde && hasta) {
+    return [new Date(desde + "T00:00:00"), new Date(hasta + "T23:59:59")];
+  }
+  return [null, null];
+}
+
+function DashboardPagosPC({ comprobantes, usersMap, onBack, accessToken }) {
+  const [periodo, setPeriodo] = useState("6m");
+  const [desdePersonalizado, setDesdePersonalizado] = useState("");
+  const [hastaPersonalizado, setHastaPersonalizado] = useState("");
+  const [filtroPlan, setFiltroPlan] = useState("todos");
+  const [filtroEstado, setFiltroEstado] = useState("todos");
+  const [filtroMetodo, setFiltroMetodo] = useState("todos");
+  const [vistaEvolucion, setVistaEvolucion] = useState("ingresos"); // ingresos | cantidad
+  const [busquedaTabla, setBusquedaTabla] = useState("");
+  const [ordenTabla, setOrdenTabla] = useState({ campo: "fecha", dir: "desc" });
+  const [verImagen, setVerImagen] = useState(null);
+
+  const planDe = (c) => PLANES_PRO.find((p) => p.id === c.plan_id) || PLANES_PRO.find((p) => p.meses === c.plan_meses);
+  const precioDe = (c) => planDe(c)?.precio || 0;
+  const planLabelDe = (c) => planDe(c)?.label || "Sin plan";
+  const nombreDe = (c) => usersMap[c.usuario_id]?.nombre || usersMap[c.usuario_id]?.email || "Usuario desconocido";
+  const emailDe = (c) => usersMap[c.usuario_id]?.email || "—";
+  const fechaDe = (c) => c.fecha_decision || c.created_at;
+  const fmt = (n) => Math.round(n).toLocaleString("es-AR");
+
+  const [rIni, rFin] = rangoDePeriodo(periodo, desdePersonalizado, hastaPersonalizado);
+
+  const filtrados = comprobantes.filter((c) => {
+    const f = fechaDe(c) ? new Date(fechaDe(c)) : null;
+    if (rIni && rFin) {
+      if (!f || f < rIni || f > rFin) return false;
+    }
+    if (filtroPlan !== "todos" && planLabelDe(c) !== filtroPlan) return false;
+    if (filtroEstado !== "todos" && c.estado !== filtroEstado) return false;
+    if (filtroMetodo !== "todos") {
+      if (filtroMetodo === "sinDato" ? ["ars", "usd"].includes(c.metodo_pago) : c.metodo_pago !== filtroMetodo) return false;
+    }
+    return true;
+  });
+
+  const aprobados = filtrados.filter((c) => c.estado === "aprobado");
+  const rechazados = filtrados.filter((c) => c.estado === "rechazado");
+  const pendientes = filtrados.filter((c) => c.estado === "pendiente");
+
+  const totalRecaudado = aprobados.reduce((acc, c) => acc + precioDe(c), 0);
+  const totalRechazado = rechazados.reduce((acc, c) => acc + precioDe(c), 0);
+  const totalPendiente = pendientes.reduce((acc, c) => acc + precioDe(c), 0);
+  const ticketProm = aprobados.length ? totalRecaudado / aprobados.length : 0;
+  const decisivos = aprobados.length + rechazados.length;
+  const tasaAprobacion = decisivos > 0 ? Math.round((aprobados.length / decisivos) * 100) : null;
+  const usuariosUnicos = new Set(aprobados.map((c) => c.usuario_id)).size;
+
+  const porPlanMap = {};
+  aprobados.forEach((c) => {
+    const label = planLabelDe(c);
+    if (!porPlanMap[label]) porPlanMap[label] = { count: 0, total: 0 };
+    porPlanMap[label].count++;
+    porPlanMap[label].total += precioDe(c);
+  });
+  const porPlanArr = Object.entries(porPlanMap)
+    .map(([label, v]) => ({ label, ...v }))
+    .sort((a, b) => b.total - a.total);
+
+  const porMetodo = { ars: { count: 0, total: 0 }, usd: { count: 0, total: 0 }, sinDato: { count: 0, total: 0 } };
+  aprobados.forEach((c) => {
+    const key = c.metodo_pago === "ars" ? "ars" : c.metodo_pago === "usd" ? "usd" : "sinDato";
+    porMetodo[key].count++;
+    porMetodo[key].total += precioDe(c);
+  });
+
+  // Evolución: usa el rango elegido, agrupado por mes (o por día si el rango es corto)
+  const mesesEvo = [];
+  {
+    const base = rIni ? new Date(rIni) : new Date(new Date().setMonth(new Date().getMonth() - 5));
+    const fin = rFin || new Date();
+    let cursor = new Date(base.getFullYear(), base.getMonth(), 1);
+    while (cursor <= fin) {
+      mesesEvo.push({
+        key: `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`,
+        label: cursor.toLocaleDateString("es-AR", { month: "short", year: "2-digit" }),
+        total: 0,
+        count: 0,
+      });
+      cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+    }
+    if (mesesEvo.length === 0) {
+      mesesEvo.push({ key: "actual", label: "Actual", total: 0, count: 0 });
+    }
+  }
+  aprobados.forEach((c) => {
+    const f = fechaDe(c);
+    if (!f) return;
+    const d = new Date(f);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const m = mesesEvo.find((mm) => mm.key === key);
+    if (m) {
+      m.total += precioDe(c);
+      m.count++;
+    }
+  });
+  const maxEvo = Math.max(1, ...mesesEvo.map((m) => (vistaEvolucion === "ingresos" ? m.total : m.count)));
+
+  // Alertas
+  const sinMetodo = aprobados.filter((c) => !c.metodo_pago);
+  const sinFecha = aprobados.filter((c) => !c.fecha_decision);
+  const sinComprobante = filtrados.filter((c) => !c.imagen_url);
+  const alertas = [
+    { label: `${pendientes.length} pago${pendientes.length === 1 ? "" : "s"} pendiente${pendientes.length === 1 ? "" : "s"} de revisión`, count: pendientes.length, accion: () => setFiltroEstado("pendiente") },
+    { label: `${sinMetodo.length} pago${sinMetodo.length === 1 ? "" : "s"} sin método registrado`, count: sinMetodo.length, accion: () => setFiltroMetodo("sinDato") },
+    { label: `${sinFecha.length} pago${sinFecha.length === 1 ? "" : "s"} sin fecha de decisión`, count: sinFecha.length },
+    { label: `${sinComprobante.length} pago${sinComprobante.length === 1 ? "" : "s"} sin comprobante adjunto`, count: sinComprobante.length },
+  ].filter((a) => a.count > 0);
+
+  // Tabla
+  const tablaBase = busquedaTabla.trim()
+    ? filtrados.filter((c) => {
+        const q = busquedaTabla.toLowerCase();
+        return nombreDe(c).toLowerCase().includes(q) || emailDe(c).toLowerCase().includes(q) || planLabelDe(c).toLowerCase().includes(q);
+      })
+    : filtrados;
+  const tablaOrdenada = [...tablaBase].sort((a, b) => {
+    let va, vb;
+    if (ordenTabla.campo === "fecha") {
+      va = new Date(fechaDe(a) || 0);
+      vb = new Date(fechaDe(b) || 0);
+    } else if (ordenTabla.campo === "usuario") {
+      va = nombreDe(a);
+      vb = nombreDe(b);
+    } else if (ordenTabla.campo === "monto") {
+      va = precioDe(a);
+      vb = precioDe(b);
+    } else {
+      va = a[ordenTabla.campo] || "";
+      vb = b[ordenTabla.campo] || "";
+    }
+    const cmp = va > vb ? 1 : va < vb ? -1 : 0;
+    return ordenTabla.dir === "asc" ? cmp : -cmp;
+  });
+
+  const cambiarOrden = (campo) => {
+    setOrdenTabla((o) => (o.campo === campo ? { campo, dir: o.dir === "asc" ? "desc" : "asc" } : { campo, dir: "desc" }));
+  };
+
+  const exportar = () => {
+    const headers = ["Fecha", "Usuario", "Email", "Plan", "Monto (cat. USD)", "Método", "Estado", "Motivo rechazo"];
+    const rows = tablaOrdenada.map((c) => [
+      fechaDe(c) ? new Date(fechaDe(c)).toLocaleString("es-AR") : "",
+      nombreDe(c),
+      emailDe(c),
+      planLabelDe(c),
+      precioDe(c),
+      c.metodo_pago === "ars" ? "Pesos ARG" : c.metodo_pago === "usd" ? "USD/USDT" : "Sin registrar",
+      c.estado,
+      c.motivo_rechazo || "",
+    ]);
+    const nombreArchivo = `pagos-${new Date().toISOString().slice(0, 10)}`;
+    if (window.XLSX) {
+      const datos = [headers, ...rows];
+      const hoja = window.XLSX.utils.aoa_to_sheet(datos);
+      hoja["!cols"] = headers.map((h, i) => ({ wch: Math.min(Math.max(h.length, ...rows.map((r) => String(r[i] ?? "").length)) + 2, 40) }));
+      hoja["!freeze"] = { xSplit: 0, ySplit: 1 };
+      const libro = window.XLSX.utils.book_new();
+      window.XLSX.utils.book_append_sheet(libro, hoja, "Pagos");
+      window.XLSX.writeFile(libro, `${nombreArchivo}.xlsx`);
+      return;
+    }
+    const csv = [headers, ...rows].map((r) => r.map((c2) => `"${String(c2).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${nombreArchivo}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const cardStyle = { backgroundColor: C.card, border: `1px solid ${C.border}` };
+  const estadoColor = (e) => (e === "aprobado" ? C.green : e === "rechazado" ? C.red : "#F0B429");
+
+  return (
+    <div className="max-w-6xl mx-auto px-2">
+      <div className="flex items-center justify-between mb-4">
+        <ScreenHeader title="Dashboard de Pagos — Versión PC" onBack={onBack} />
+      </div>
+
+      {/* Filtros globales */}
+      <div className="rounded-2xl p-3 mb-4" style={cardStyle}>
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {PERIODOS_DASH.map((p) => (
+            <button
+              key={p.key}
+              onClick={() => setPeriodo(p.key)}
+              className="px-3 py-1.5 rounded-full text-[11.5px] font-medium"
+              style={{
+                backgroundColor: periodo === p.key ? C.green : C.cardAlt,
+                color: periodo === p.key ? "#08090B" : C.textDim,
+                border: `1px solid ${periodo === p.key ? C.green : C.border}`,
+              }}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        {periodo === "personalizado" && (
+          <div className="flex gap-2 mb-3">
+            <input type="date" value={desdePersonalizado} onChange={(e) => setDesdePersonalizado(e.target.value)} className="rounded-xl px-3 py-2 text-xs outline-none" style={{ backgroundColor: C.cardAlt, color: C.text, border: `1px solid ${C.border}` }} />
+            <input type="date" value={hastaPersonalizado} onChange={(e) => setHastaPersonalizado(e.target.value)} className="rounded-xl px-3 py-2 text-xs outline-none" style={{ backgroundColor: C.cardAlt, color: C.text, border: `1px solid ${C.border}` }} />
+          </div>
+        )}
+        <div className="flex flex-wrap gap-2">
+          <select value={filtroPlan} onChange={(e) => setFiltroPlan(e.target.value)} className="rounded-xl px-3 py-2 text-xs outline-none" style={{ backgroundColor: C.cardAlt, color: C.text, border: `1px solid ${C.border}` }}>
+            <option value="todos">Todos los planes</option>
+            {PLANES_PRO.map((p) => (
+              <option key={p.id} value={p.label}>{p.label}</option>
+            ))}
+          </select>
+          <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)} className="rounded-xl px-3 py-2 text-xs outline-none" style={{ backgroundColor: C.cardAlt, color: C.text, border: `1px solid ${C.border}` }}>
+            <option value="todos">Todos los estados</option>
+            <option value="aprobado">Aprobado</option>
+            <option value="pendiente">Pendiente</option>
+            <option value="rechazado">Rechazado</option>
+          </select>
+          <select value={filtroMetodo} onChange={(e) => setFiltroMetodo(e.target.value)} className="rounded-xl px-3 py-2 text-xs outline-none" style={{ backgroundColor: C.cardAlt, color: C.text, border: `1px solid ${C.border}` }}>
+            <option value="todos">Todos los métodos</option>
+            <option value="ars">Pesos ARG</option>
+            <option value="usd">USD/USDT</option>
+            <option value="sinDato">Sin registrar</option>
+          </select>
+          {(filtroPlan !== "todos" || filtroEstado !== "todos" || filtroMetodo !== "todos") && (
+            <button
+              onClick={() => {
+                setFiltroPlan("todos");
+                setFiltroEstado("todos");
+                setFiltroMetodo("todos");
+              }}
+              className="text-xs underline"
+              style={{ color: C.textDim }}
+            >
+              Limpiar filtros
+            </button>
+          )}
+        </div>
+      </div>
+
+      {alertas.length > 0 && (
+        <div className="rounded-2xl p-4 mb-4" style={{ backgroundColor: "rgba(240,180,41,0.1)", border: `1px solid ${C.warningBorder}` }}>
+          <div className="text-[11px] tracking-widest font-semibold mb-2" style={{ color: "#F0B429" }}>⚠️ REQUIEREN ATENCIÓN</div>
+          <div className="flex flex-col gap-1">
+            {alertas.map((a, i) =>
+              a.accion ? (
+                <button key={i} onClick={a.accion} className="text-left text-[12.5px] underline" style={{ color: C.text }}>
+                  • {a.label}
+                </button>
+              ) : (
+                <span key={i} className="text-[12.5px]" style={{ color: C.text }}>• {a.label}</span>
+              )
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* KPIs */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        <button onClick={() => setFiltroEstado("aprobado")} className="rounded-2xl p-3 text-left" style={cardStyle}>
+          <div className="text-[10px] tracking-wide font-medium mb-1" style={{ color: C.textDim }}>TOTAL RECAUDADO</div>
+          <div className="text-xl font-bold" style={{ color: C.green }}>${fmt(totalRecaudado)}</div>
+          <div className="text-[10px]" style={{ color: C.textDim }}>USD/USDT</div>
+        </button>
+        <button onClick={() => setFiltroEstado("aprobado")} className="rounded-2xl p-3 text-left" style={cardStyle}>
+          <div className="text-[10px] tracking-wide font-medium mb-1" style={{ color: C.textDim }}>PAGOS APROBADOS</div>
+          <div className="text-xl font-bold" style={{ color: C.text }}>{aprobados.length}</div>
+        </button>
+        <button onClick={() => setFiltroEstado("pendiente")} className="rounded-2xl p-3 text-left" style={cardStyle}>
+          <div className="text-[10px] tracking-wide font-medium mb-1" style={{ color: C.textDim }}>PAGOS PENDIENTES</div>
+          <div className="text-xl font-bold" style={{ color: "#F0B429" }}>{pendientes.length}</div>
+          <div className="text-[10px]" style={{ color: C.textDim }}>${fmt(totalPendiente)}</div>
+        </button>
+        <button onClick={() => setFiltroEstado("rechazado")} className="rounded-2xl p-3 text-left" style={cardStyle}>
+          <div className="text-[10px] tracking-wide font-medium mb-1" style={{ color: C.textDim }}>PAGOS RECHAZADOS</div>
+          <div className="text-xl font-bold" style={{ color: C.red }}>{rechazados.length}</div>
+          <div className="text-[10px]" style={{ color: C.textDim }}>${fmt(totalRechazado)}</div>
+        </button>
+        <div className="rounded-2xl p-3" style={cardStyle}>
+          <div className="text-[10px] tracking-wide font-medium mb-1" style={{ color: C.textDim }}>TICKET PROMEDIO</div>
+          <div className="text-xl font-bold" style={{ color: C.text }}>${fmt(ticketProm)}</div>
+        </div>
+        <div className="rounded-2xl p-3" style={cardStyle}>
+          <div className="text-[10px] tracking-wide font-medium mb-1" style={{ color: C.textDim }}>TASA DE APROBACIÓN</div>
+          <div className="text-xl font-bold" style={{ color: C.text }}>{tasaAprobacion != null ? `${tasaAprobacion}%` : "—"}</div>
+        </div>
+        <div className="rounded-2xl p-3" style={cardStyle}>
+          <div className="text-[10px] tracking-wide font-medium mb-1" style={{ color: C.textDim }}>USUARIOS ÚNICOS</div>
+          <div className="text-xl font-bold" style={{ color: C.text }}>{usuariosUnicos}</div>
+          <div className="text-[10px]" style={{ color: C.textDim }}>compraron en el período</div>
+        </div>
+        <button onClick={exportar} className="rounded-2xl p-3 text-left flex flex-col justify-center items-center gap-1" style={{ backgroundColor: C.green }}>
+          <Download size={18} color="#08090B" />
+          <span className="text-xs font-semibold" style={{ color: "#08090B" }}>Exportar (Excel)</span>
+        </button>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-4 mb-4">
+        {/* Evolución */}
+        <div className="rounded-2xl p-4" style={cardStyle}>
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>EVOLUCIÓN</span>
+            <div className="flex gap-1">
+              {["ingresos", "cantidad"].map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setVistaEvolucion(v)}
+                  className="px-2 py-1 rounded-full text-[10px] font-medium"
+                  style={{
+                    backgroundColor: vistaEvolucion === v ? C.green : C.cardAlt,
+                    color: vistaEvolucion === v ? "#08090B" : C.textDim,
+                  }}
+                >
+                  {v === "ingresos" ? "Ingresos" : "Cantidad"}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-end justify-between gap-1" style={{ height: 150 }}>
+            {mesesEvo.map((m) => {
+              const valor = vistaEvolucion === "ingresos" ? m.total : m.count;
+              return (
+                <button
+                  key={m.key}
+                  onClick={() => m.count > 0 && setBusquedaTabla("")}
+                  title={`${m.label}: ${vistaEvolucion === "ingresos" ? `$${fmt(m.total)}` : `${m.count} pagos`}`}
+                  className="flex-1 flex flex-col items-center justify-end gap-1 group"
+                  style={{ height: "100%" }}
+                >
+                  <span className="text-[8px] whitespace-nowrap opacity-0 group-hover:opacity-100" style={{ color: C.textDim }}>
+                    {vistaEvolucion === "ingresos" ? `$${fmt(m.total)}` : m.count}
+                  </span>
+                  <div
+                    className="w-full rounded-t-md"
+                    style={{ height: `${Math.max(3, (valor / maxEvo) * 100)}px`, backgroundColor: valor > 0 ? C.green : C.borderSoft }}
+                  />
+                  <span className="text-[9px]" style={{ color: C.textDim }}>{m.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Por plan */}
+        <div className="rounded-2xl p-4" style={cardStyle}>
+          <div className="text-[11px] tracking-wide font-medium mb-3" style={{ color: C.textDim }}>INGRESOS POR PLAN</div>
+          {porPlanArr.length === 0 ? (
+            <p className="text-xs" style={{ color: C.textDim }}>Sin pagos aprobados en este período.</p>
+          ) : (
+            porPlanArr.map((p) => (
+              <button key={p.label} onClick={() => setFiltroPlan(p.label)} className="w-full text-left mb-2.5 last:mb-0">
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span style={{ color: C.text }}>{p.label}</span>
+                  <span className="underline" style={{ color: C.green }}>${fmt(p.total)} · {p.count} pago{p.count === 1 ? "" : "s"}</span>
+                </div>
+                <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: C.cardAlt }}>
+                  <div className="h-1.5 rounded-full" style={{ width: `${totalRecaudado > 0 ? (p.total / totalRecaudado) * 100 : 0}%`, backgroundColor: C.green }} />
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Métodos de pago */}
+      <div className="rounded-2xl p-4 mb-4" style={cardStyle}>
+        <div className="text-[11px] tracking-wide font-medium mb-1" style={{ color: C.textDim }}>POR MÉTODO DE PAGO</div>
+        <p className="text-[10px] mb-3" style={{ color: C.textDim }}>
+          No guardamos el monto exacto cobrado en pesos — esto muestra cuántos pagos entraron por cada medio y el valor de catálogo en USD/USDT de esos planes.
+        </p>
+        <div className="grid grid-cols-3 gap-3">
+          <button onClick={() => setFiltroMetodo("ars")} className="text-left">
+            <div className="text-xs mb-0.5" style={{ color: C.textDim }}>🇦🇷 Tiendup (pesos)</div>
+            <div className="text-[15px] font-bold" style={{ color: C.text }}>{porMetodo.ars.count} pago{porMetodo.ars.count === 1 ? "" : "s"}</div>
+            <div className="text-[10px]" style={{ color: C.textDim }}>catálogo: ${fmt(porMetodo.ars.total)}</div>
+          </button>
+          <button onClick={() => setFiltroMetodo("usd")} className="text-left">
+            <div className="text-xs mb-0.5" style={{ color: C.textDim }}>💵 Hotmart (USD/USDT)</div>
+            <div className="text-[15px] font-bold" style={{ color: C.text }}>{porMetodo.usd.count} pago{porMetodo.usd.count === 1 ? "" : "s"}</div>
+            <div className="text-[10px]" style={{ color: C.textDim }}>${fmt(porMetodo.usd.total)} reales</div>
+          </button>
+          <button onClick={() => setFiltroMetodo("sinDato")} className="text-left">
+            <div className="text-xs mb-0.5" style={{ color: C.textDim }}>❔ Sin registrar</div>
+            <div className="text-[15px] font-bold" style={{ color: C.text }}>{porMetodo.sinDato.count} pago{porMetodo.sinDato.count === 1 ? "" : "s"}</div>
+          </button>
+        </div>
+      </div>
+
+      {/* Tabla completa */}
+      <div className="rounded-2xl p-4 mb-6" style={cardStyle}>
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <span className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>
+            TODOS LOS PAGOS ({tablaOrdenada.length})
+          </span>
+          <input
+            value={busquedaTabla}
+            onChange={(e) => setBusquedaTabla(e.target.value)}
+            placeholder="Buscar por nombre, email o plan..."
+            className="rounded-xl px-3 py-1.5 text-xs outline-none"
+            style={{ backgroundColor: C.cardAlt, color: C.text, border: `1px solid ${C.border}`, minWidth: 220 }}
+          />
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs" style={{ borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ borderBottom: `1px solid ${C.border}` }}>
+                {[
+                  { k: "fecha", label: "Fecha" },
+                  { k: "usuario", label: "Usuario" },
+                  { k: "email", label: "Email" },
+                  { k: "plan", label: "Plan" },
+                  { k: "monto", label: "Monto" },
+                  { k: "metodo", label: "Método" },
+                  { k: "estado", label: "Estado" },
+                  { k: "acciones", label: "" },
+                ].map((col) => (
+                  <th
+                    key={col.k}
+                    onClick={() => col.k !== "acciones" && col.k !== "plan" && col.k !== "metodo" && cambiarOrden(col.k === "usuario" ? "usuario" : col.k)}
+                    className="text-left py-2 pr-3 whitespace-nowrap"
+                    style={{ color: C.textDim, cursor: col.k !== "acciones" ? "pointer" : "default" }}
+                  >
+                    {col.label}
+                    {ordenTabla.campo === col.k && (ordenTabla.dir === "asc" ? " ↑" : " ↓")}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {tablaOrdenada.map((c) => (
+                <tr key={c.id} style={{ borderBottom: `1px solid ${C.borderSoft}` }}>
+                  <td className="py-2 pr-3 whitespace-nowrap" style={{ color: C.text }}>
+                    {fechaDe(c) ? new Date(fechaDe(c)).toLocaleDateString("es-AR") : "Sin registrar"}
+                  </td>
+                  <td className="py-2 pr-3 whitespace-nowrap" style={{ color: C.text }}>{nombreDe(c)}</td>
+                  <td className="py-2 pr-3 whitespace-nowrap" style={{ color: C.textDim }}>{emailDe(c)}</td>
+                  <td className="py-2 pr-3 whitespace-nowrap" style={{ color: C.text }}>{planLabelDe(c)}</td>
+                  <td className="py-2 pr-3 whitespace-nowrap font-semibold" style={{ color: C.green }}>${fmt(precioDe(c))}</td>
+                  <td className="py-2 pr-3 whitespace-nowrap" style={{ color: C.textDim }}>
+                    {c.metodo_pago === "ars" ? "Pesos ARG" : c.metodo_pago === "usd" ? "USD/USDT" : "Sin registrar"}
+                  </td>
+                  <td className="py-2 pr-3 whitespace-nowrap">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase" style={{ backgroundColor: `${estadoColor(c.estado)}22`, color: estadoColor(c.estado) }}>
+                      {c.estado}
+                    </span>
+                  </td>
+                  <td className="py-2 pr-3 whitespace-nowrap">
+                    {c.imagen_url && (
+                      <button onClick={() => setVerImagen(c.imagen_url)} className="text-[11px] underline" style={{ color: C.green }}>
+                        Ver comprobante
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {tablaOrdenada.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="text-center py-8" style={{ color: C.textDim }}>
+                    No hay pagos que coincidan con estos filtros.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {verImagen && (
+        <div
+          className="fixed inset-0 z-[95] flex items-center justify-center p-4"
+          style={{ backgroundColor: "rgba(0,0,0,0.9)" }}
+          onClick={() => setVerImagen(null)}
+        >
+          <img src={verImagen} alt="Comprobante" className="max-w-full max-h-full rounded-xl" />
+        </div>
       )}
     </div>
   );
