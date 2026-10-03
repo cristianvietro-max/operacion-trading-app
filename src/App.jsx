@@ -6774,9 +6774,11 @@ function DashboardPagosView({ onBack, accessToken }) {
                 <div className="text-xs mb-0.5" style={{ color: C.textDim }}>🇦🇷 Tiendup (pesos)</div>
                 <div className="text-[15px] font-bold" style={{ color: C.text }}>{porMetodo.ars.count} pago{porMetodo.ars.count === 1 ? "" : "s"}</div>
                 {porMetodo.ars.totalArsReal > 0 && (
-                  <div className="text-[11px] font-semibold" style={{ color: C.green }}>${fmt(porMetodo.ars.totalArsReal)} ARS recibidos</div>
+                  <div className="text-[11px] font-semibold" style={{ color: C.green }}>ARS {fmt(porMetodo.ars.totalArsReal)} recibidos</div>
                 )}
-                <div className="text-[10px]" style={{ color: C.textDim }}>≈ ${fmt(porMetodo.ars.total)} USD/USDT</div>
+                {porMetodo.ars.count > 0 && (
+                  <div className="text-[10px]" style={{ color: C.textDim }}>≈ USD {fmt(porMetodo.ars.total)}</div>
+                )}
                 {porMetodo.ars.sinMonto > 0 && (
                   <div className="text-[9px]" style={{ color: C.textDim }}>({porMetodo.ars.sinMonto} sin monto en pesos registrado)</div>
                 )}
@@ -6784,7 +6786,7 @@ function DashboardPagosView({ onBack, accessToken }) {
               <button onClick={() => setPlanDetalle({ tipo: "metodo", valor: "usd", titulo: "Pagos por Hotmart (USD/USDT)" })} className="text-left">
                 <div className="text-xs mb-0.5" style={{ color: C.textDim }}>💵 Hotmart (USD/USDT)</div>
                 <div className="text-[15px] font-bold" style={{ color: C.text }}>{porMetodo.usd.count} pago{porMetodo.usd.count === 1 ? "" : "s"}</div>
-                <div className="text-[11px] font-semibold" style={{ color: C.green }}>${fmt(porMetodo.usd.total)} USD/USDT recibidos</div>
+                <div className="text-[11px] font-semibold" style={{ color: C.green }}>USD {fmt(porMetodo.usd.total)} recibidos</div>
               </button>
             </div>
             {porMetodo.sinDato.count > 0 && (
@@ -7339,9 +7341,11 @@ function DashboardPagosPC({ comprobantes, usersMap, onBack, accessToken }) {
             <div className="text-xs mb-0.5" style={{ color: C.textDim }}>🇦🇷 Tiendup (pesos)</div>
             <div className="text-[15px] font-bold" style={{ color: C.text }}>{porMetodo.ars.count} pago{porMetodo.ars.count === 1 ? "" : "s"}</div>
             {porMetodo.ars.totalArsReal > 0 && (
-              <div className="text-[11px] font-semibold" style={{ color: C.green }}>${fmt(porMetodo.ars.totalArsReal)} ARS recibidos</div>
+              <div className="text-[11px] font-semibold" style={{ color: C.green }}>ARS {fmt(porMetodo.ars.totalArsReal)} recibidos</div>
             )}
-            <div className="text-[10px]" style={{ color: C.textDim }}>≈ ${fmt(porMetodo.ars.total)} USD/USDT</div>
+            {porMetodo.ars.count > 0 && (
+                  <div className="text-[10px]" style={{ color: C.textDim }}>≈ USD {fmt(porMetodo.ars.total)}</div>
+                )}
             {porMetodo.ars.sinMonto > 0 && (
               <div className="text-[9px]" style={{ color: C.textDim }}>({porMetodo.ars.sinMonto} sin monto registrado)</div>
             )}
@@ -7349,7 +7353,7 @@ function DashboardPagosPC({ comprobantes, usersMap, onBack, accessToken }) {
           <button onClick={() => setFiltroMetodo("usd")} className="text-left">
             <div className="text-xs mb-0.5" style={{ color: C.textDim }}>💵 Hotmart (USD/USDT)</div>
             <div className="text-[15px] font-bold" style={{ color: C.text }}>{porMetodo.usd.count} pago{porMetodo.usd.count === 1 ? "" : "s"}</div>
-            <div className="text-[11px] font-semibold" style={{ color: C.green }}>${fmt(porMetodo.usd.total)} recibidos</div>
+            <div className="text-[11px] font-semibold" style={{ color: C.green }}>USD {fmt(porMetodo.usd.total)} recibidos</div>
           </button>
           <button onClick={() => setFiltroMetodo("sinDato")} className="text-left">
             <div className="text-xs mb-0.5" style={{ color: C.textDim }}>❔ Sin registrar</div>
