@@ -376,7 +376,7 @@ async function uploadPaymentProof(file) {
   return `${SUPABASE_URL}/storage/v1/object/public/comprobantes-pago/${filename}`;
 }
 
-async function createComprobante(userId, imagenUrl, planMeses, planId, tipoOperacion, metodoPago) {
+async function createComprobante(userId, imagenUrl, planMeses, planId, tipoOperacion, metodoPago, precioMomento) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/comprobantes_pago`, {
     method: "POST",
     headers: {
@@ -393,6 +393,8 @@ async function createComprobante(userId, imagenUrl, planMeses, planId, tipoOpera
       plan_id: planId || null,
       tipo_operacion: tipoOperacion || null,
       metodo_pago: metodoPago || null,
+      precio_usd_momento: precioMomento?.usd ?? null,
+      precio_ars_momento: precioMomento?.ars ?? null,
     }),
   });
   if (!res.ok) throw new Error("No se pudo registrar el comprobante");
@@ -407,7 +409,7 @@ async function fetchPlanesLinks() {
   return res.json();
 }
 
-async function upsertPlanLink(planId, linkArs, linkUsd, accessToken) {
+async function upsertPlanLink(planId, linkArs, linkUsd, precioArs, accessToken) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/planes_links`, {
     method: "POST",
     headers: {
@@ -416,7 +418,12 @@ async function upsertPlanLink(planId, linkArs, linkUsd, accessToken) {
       "Content-Type": "application/json",
       Prefer: "resolution=merge-duplicates,return=representation",
     },
-    body: JSON.stringify({ plan_id: planId, link_ars: linkArs || null, link_usd: linkUsd || null }),
+    body: JSON.stringify({
+      plan_id: planId,
+      link_ars: linkArs || null,
+      link_usd: linkUsd || null,
+      precio_ars: precioArs ? Number(precioArs) : null,
+    }),
   });
   if (!res.ok) {
     const detail = await res.json().catch(() => null);
@@ -3191,7 +3198,7 @@ function LoginView({ onLogin, onSignup }) {
   );
 }
 
-function PaymentProofForm({ userId, initialMeses, fixedPlanId, tipoOperacion, metodoPago, onClose, onSent }) {
+function PaymentProofForm({ userId, initialMeses, fixedPlanId, tipoOperacion, metodoPago, precioArsMomento, onClose, onSent }) {
   const [file, setFile] = useState(null);
   const [planMeses, setPlanMeses] = useState(initialMeses || null);
   const [submitting, setSubmitting] = useState(false);
@@ -3204,7 +3211,12 @@ function PaymentProofForm({ userId, initialMeses, fixedPlanId, tipoOperacion, me
     setError(null);
     try {
       const url = await uploadPaymentProof(file);
-      await createComprobante(userId, url, planMeses, fixedPlanId || null, tipoOperacion || null, metodoPago || null);
+      const planUsado = planFijo || PLANES_PRO.find((p) => p.meses === planMeses);
+      const precioMomento = {
+        usd: planUsado?.precio ?? null,
+        ars: metodoPago === "ars" ? precioArsMomento ?? null : null,
+      };
+      await createComprobante(userId, url, planMeses, fixedPlanId || null, tipoOperacion || null, metodoPago || null, precioMomento);
       onSent();
     } catch (err) {
       setError(err.message || "No se pudo enviar el comprobante");
@@ -3937,6 +3949,8 @@ function PlanesProView({ onBack, userId, accessToken, profile }) {
   const filaLinks = links.find((l) => l.plan_id === selected);
   const linkArs = filaLinks?.link_ars || null;
   const linkUsd = filaLinks?.link_usd || filaLinks?.link_pago || null;
+  const precioArs = filaLinks?.precio_ars || null;
+  const arsDisponible = !!(linkArs && precioArs);
 
   const tipoOperacion = !profile?.nivel_contenido || profile.nivel_contenido === "prueba"
     ? "compra"
@@ -4074,17 +4088,19 @@ function PlanesProView({ onBack, userId, accessToken, profile }) {
             ELEGÍ CÓMO QUERÉS PAGAR
           </div>
 
-          <button
-            onClick={() => abrirCheckout("ars")}
-            className="w-full rounded-2xl py-3.5 text-sm font-semibold mb-2"
-            style={{
-              backgroundColor: metodoPago === "ars" ? C.green : C.cardAlt,
-              color: metodoPago === "ars" ? "#08090B" : C.text,
-              border: `1px solid ${C.green}`,
-            }}
-          >
-            🇦🇷 Pagar en pesos argentinos (Tiendup)
-          </button>
+          {arsDisponible && (
+            <button
+              onClick={() => abrirCheckout("ars")}
+              className="w-full rounded-2xl py-3.5 text-sm font-semibold mb-2"
+              style={{
+                backgroundColor: metodoPago === "ars" ? C.green : C.cardAlt,
+                color: metodoPago === "ars" ? "#08090B" : C.text,
+                border: `1px solid ${C.green}`,
+              }}
+            >
+              🇦🇷 Pagar en pesos argentinos (Tiendup) · ${Math.round(precioArs).toLocaleString("es-AR")}
+            </button>
+          )}
 
           <button
             onClick={() => abrirCheckout("usd")}
@@ -4123,6 +4139,7 @@ function PlanesProView({ onBack, userId, accessToken, profile }) {
           initialMeses={planSel?.meses}
           tipoOperacion={tipoOperacion}
           metodoPago={metodoPago}
+          precioArsMomento={precioArs}
           onClose={() => setShowProof(false)}
           onSent={() => {
             setShowProof(false);
@@ -5284,7 +5301,7 @@ function UsuariosView({ onBack, accessToken, onApproved, adminNombre, scrollTarg
       .then((rows) => {
         const map = {};
         rows.forEach((r) => {
-          map[r.plan_id] = { ars: r.link_ars || "", usd: r.link_usd || r.link_pago || "" };
+          map[r.plan_id] = { ars: r.link_ars || "", usd: r.link_usd || r.link_pago || "", precioArs: r.precio_ars || "" };
         });
         setPlanesLinksState(map);
       })
@@ -5295,7 +5312,11 @@ function UsuariosView({ onBack, accessToken, onApproved, adminNombre, scrollTarg
     setSavingLinks(true);
     setActionError(null);
     try {
-      await Promise.all(PLANES_PRO.map((p) => upsertPlanLink(p.id, planesLinksState[p.id]?.ars || "", planesLinksState[p.id]?.usd || "", accessToken)));
+      await Promise.all(
+        PLANES_PRO.map((p) =>
+          upsertPlanLink(p.id, planesLinksState[p.id]?.ars || "", planesLinksState[p.id]?.usd || "", planesLinksState[p.id]?.precioArs || "", accessToken)
+        )
+      );
     } catch (err) {
       setActionError(err.message || "No se pudieron guardar los links de pago");
     } finally {
@@ -5712,6 +5733,19 @@ function UsuariosView({ onBack, accessToken, onApproved, adminNombre, scrollTarg
                 className="w-full mt-1 mb-2 rounded-xl px-3 py-2.5 text-sm outline-none"
                 style={{ backgroundColor: C.cardAlt, color: C.text, border: `1px solid ${C.border}` }}
               />
+              <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>PRECIO EN PESOS (ARS)</label>
+              <input
+                type="number"
+                min="0"
+                value={planesLinksState[p.id]?.precioArs || ""}
+                onChange={(e) => setPlanesLinksState((s) => ({ ...s, [p.id]: { ...s[p.id], precioArs: e.target.value } }))}
+                placeholder="Ej: 25000"
+                className="w-full mt-1 mb-2 rounded-xl px-3 py-2.5 text-sm outline-none"
+                style={{ backgroundColor: C.cardAlt, color: C.text, border: `1px solid ${C.border}` }}
+              />
+              <p className="text-[10px] mb-2" style={{ color: C.textDim }}>
+                Si dejás vacío el link o el precio en pesos, el usuario no va a ver la opción de pagar en pesos para este plan.
+              </p>
               <label className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>USD / USDT (HOTMART)</label>
               <input
                 value={planesLinksState[p.id]?.usd || ""}
@@ -6569,7 +6603,9 @@ function DashboardPagosView({ onBack, accessToken }) {
   }, []);
 
   const planDe = (c) => PLANES_PRO.find((p) => p.id === c.plan_id) || PLANES_PRO.find((p) => p.meses === c.plan_meses);
-  const precioDe = (c) => planDe(c)?.precio || 0;
+  // Usa el precio guardado al momento del pago; si es un pago viejo (antes de esta función), cae al precio de catálogo actual.
+  const precioDe = (c) => c.precio_usd_momento ?? planDe(c)?.precio ?? 0;
+  const precioArsRealDe = (c) => c.precio_ars_momento ?? null;
   const planLabelDe = (c) => planDe(c)?.label || "Sin plan";
   const nombreDe = (c) => usersMap[c.usuario_id]?.nombre || usersMap[c.usuario_id]?.email || "Usuario desconocido";
 
@@ -6593,11 +6629,16 @@ function DashboardPagosView({ onBack, accessToken }) {
     .map(([label, v]) => ({ label, ...v }))
     .sort((a, b) => b.total - a.total);
 
-  const porMetodo = { ars: { count: 0, total: 0 }, usd: { count: 0, total: 0 }, sinDato: { count: 0, total: 0 } };
+  const porMetodo = { ars: { count: 0, total: 0, totalArsReal: 0, sinMonto: 0 }, usd: { count: 0, total: 0 }, sinDato: { count: 0, total: 0 } };
   aprobados.forEach((c) => {
     const key = c.metodo_pago === "ars" ? "ars" : c.metodo_pago === "usd" ? "usd" : "sinDato";
     porMetodo[key].count++;
     porMetodo[key].total += precioDe(c);
+    if (key === "ars") {
+      const real = precioArsRealDe(c);
+      if (real != null) porMetodo.ars.totalArsReal += real;
+      else porMetodo.ars.sinMonto++;
+    }
   });
 
   const hoy = new Date();
@@ -6726,19 +6767,24 @@ function DashboardPagosView({ onBack, accessToken }) {
               <span className="text-[11px] tracking-wide font-medium" style={{ color: C.textDim }}>POR MÉTODO DE PAGO</span>
             </div>
             <p className="text-[10px] mb-3" style={{ color: C.textDim }}>
-              No guardamos el monto exacto cobrado en pesos, así que esto muestra cuántos pagos entraron por cada medio y
-              cuánto valen esos planes en USD/USDT de catálogo (no es "pesos recibidos").
+              Para los pagos de antes de esta función no tenemos el monto exacto en pesos, así que se muestra el valor de catálogo como referencia.
             </p>
             <div className="grid grid-cols-2 gap-3">
               <button onClick={() => setPlanDetalle({ tipo: "metodo", valor: "ars", titulo: "Pagos por Tiendup (pesos ARG)" })} className="text-left">
                 <div className="text-xs mb-0.5" style={{ color: C.textDim }}>🇦🇷 Tiendup (pesos)</div>
                 <div className="text-[15px] font-bold" style={{ color: C.text }}>{porMetodo.ars.count} pago{porMetodo.ars.count === 1 ? "" : "s"}</div>
-                <div className="text-[10px]" style={{ color: C.textDim }}>valor catálogo: ${fmt(porMetodo.ars.total)}</div>
+                {porMetodo.ars.totalArsReal > 0 && (
+                  <div className="text-[11px] font-semibold" style={{ color: C.green }}>${fmt(porMetodo.ars.totalArsReal)} ARS recibidos</div>
+                )}
+                <div className="text-[10px]" style={{ color: C.textDim }}>≈ ${fmt(porMetodo.ars.total)} USD/USDT</div>
+                {porMetodo.ars.sinMonto > 0 && (
+                  <div className="text-[9px]" style={{ color: C.textDim }}>({porMetodo.ars.sinMonto} sin monto en pesos registrado)</div>
+                )}
               </button>
               <button onClick={() => setPlanDetalle({ tipo: "metodo", valor: "usd", titulo: "Pagos por Hotmart (USD/USDT)" })} className="text-left">
                 <div className="text-xs mb-0.5" style={{ color: C.textDim }}>💵 Hotmart (USD/USDT)</div>
                 <div className="text-[15px] font-bold" style={{ color: C.text }}>{porMetodo.usd.count} pago{porMetodo.usd.count === 1 ? "" : "s"}</div>
-                <div className="text-[10px]" style={{ color: C.textDim }}>${fmt(porMetodo.usd.total)} reales</div>
+                <div className="text-[11px] font-semibold" style={{ color: C.green }}>${fmt(porMetodo.usd.total)} USD/USDT recibidos</div>
               </button>
             </div>
             {porMetodo.sinDato.count > 0 && (
@@ -6924,7 +6970,9 @@ function DashboardPagosPC({ comprobantes, usersMap, onBack, accessToken }) {
   const [verImagen, setVerImagen] = useState(null);
 
   const planDe = (c) => PLANES_PRO.find((p) => p.id === c.plan_id) || PLANES_PRO.find((p) => p.meses === c.plan_meses);
-  const precioDe = (c) => planDe(c)?.precio || 0;
+  // Usa el precio guardado al momento del pago; si es un pago viejo (antes de esta función), cae al precio de catálogo actual.
+  const precioDe = (c) => c.precio_usd_momento ?? planDe(c)?.precio ?? 0;
+  const precioArsRealDe = (c) => c.precio_ars_momento ?? null;
   const planLabelDe = (c) => planDe(c)?.label || "Sin plan";
   const nombreDe = (c) => usersMap[c.usuario_id]?.nombre || usersMap[c.usuario_id]?.email || "Usuario desconocido";
   const emailDe = (c) => usersMap[c.usuario_id]?.email || "—";
@@ -6969,11 +7017,16 @@ function DashboardPagosPC({ comprobantes, usersMap, onBack, accessToken }) {
     .map(([label, v]) => ({ label, ...v }))
     .sort((a, b) => b.total - a.total);
 
-  const porMetodo = { ars: { count: 0, total: 0 }, usd: { count: 0, total: 0 }, sinDato: { count: 0, total: 0 } };
+  const porMetodo = { ars: { count: 0, total: 0, totalArsReal: 0, sinMonto: 0 }, usd: { count: 0, total: 0 }, sinDato: { count: 0, total: 0 } };
   aprobados.forEach((c) => {
     const key = c.metodo_pago === "ars" ? "ars" : c.metodo_pago === "usd" ? "usd" : "sinDato";
     porMetodo[key].count++;
     porMetodo[key].total += precioDe(c);
+    if (key === "ars") {
+      const real = precioArsRealDe(c);
+      if (real != null) porMetodo.ars.totalArsReal += real;
+      else porMetodo.ars.sinMonto++;
+    }
   });
 
   // Evolución: usa el rango elegido, agrupado por mes (o por día si el rango es corto)
@@ -7050,13 +7103,14 @@ function DashboardPagosPC({ comprobantes, usersMap, onBack, accessToken }) {
   };
 
   const exportar = () => {
-    const headers = ["Fecha", "Usuario", "Email", "Plan", "Monto (cat. USD)", "Método", "Estado", "Motivo rechazo"];
+    const headers = ["Fecha", "Usuario", "Email", "Plan", "Monto USD (momento del pago)", "Monto ARS real", "Método", "Estado", "Motivo rechazo"];
     const rows = tablaOrdenada.map((c) => [
       fechaDe(c) ? new Date(fechaDe(c)).toLocaleString("es-AR") : "",
       nombreDe(c),
       emailDe(c),
       planLabelDe(c),
       precioDe(c),
+      c.precio_ars_momento ?? "",
       c.metodo_pago === "ars" ? "Pesos ARG" : c.metodo_pago === "usd" ? "USD/USDT" : "Sin registrar",
       c.estado,
       c.motivo_rechazo || "",
@@ -7278,18 +7332,24 @@ function DashboardPagosPC({ comprobantes, usersMap, onBack, accessToken }) {
       <div className="rounded-2xl p-4 mb-4" style={cardStyle}>
         <div className="text-[11px] tracking-wide font-medium mb-1" style={{ color: C.textDim }}>POR MÉTODO DE PAGO</div>
         <p className="text-[10px] mb-3" style={{ color: C.textDim }}>
-          No guardamos el monto exacto cobrado en pesos — esto muestra cuántos pagos entraron por cada medio y el valor de catálogo en USD/USDT de esos planes.
+          Para los pagos de antes de esta función no tenemos el monto exacto en pesos, así que se muestra el valor de catálogo como referencia.
         </p>
         <div className="grid grid-cols-3 gap-3">
           <button onClick={() => setFiltroMetodo("ars")} className="text-left">
             <div className="text-xs mb-0.5" style={{ color: C.textDim }}>🇦🇷 Tiendup (pesos)</div>
             <div className="text-[15px] font-bold" style={{ color: C.text }}>{porMetodo.ars.count} pago{porMetodo.ars.count === 1 ? "" : "s"}</div>
-            <div className="text-[10px]" style={{ color: C.textDim }}>catálogo: ${fmt(porMetodo.ars.total)}</div>
+            {porMetodo.ars.totalArsReal > 0 && (
+              <div className="text-[11px] font-semibold" style={{ color: C.green }}>${fmt(porMetodo.ars.totalArsReal)} ARS recibidos</div>
+            )}
+            <div className="text-[10px]" style={{ color: C.textDim }}>≈ ${fmt(porMetodo.ars.total)} USD/USDT</div>
+            {porMetodo.ars.sinMonto > 0 && (
+              <div className="text-[9px]" style={{ color: C.textDim }}>({porMetodo.ars.sinMonto} sin monto registrado)</div>
+            )}
           </button>
           <button onClick={() => setFiltroMetodo("usd")} className="text-left">
             <div className="text-xs mb-0.5" style={{ color: C.textDim }}>💵 Hotmart (USD/USDT)</div>
             <div className="text-[15px] font-bold" style={{ color: C.text }}>{porMetodo.usd.count} pago{porMetodo.usd.count === 1 ? "" : "s"}</div>
-            <div className="text-[10px]" style={{ color: C.textDim }}>${fmt(porMetodo.usd.total)} reales</div>
+            <div className="text-[11px] font-semibold" style={{ color: C.green }}>${fmt(porMetodo.usd.total)} recibidos</div>
           </button>
           <button onClick={() => setFiltroMetodo("sinDato")} className="text-left">
             <div className="text-xs mb-0.5" style={{ color: C.textDim }}>❔ Sin registrar</div>
@@ -7347,7 +7407,12 @@ function DashboardPagosPC({ comprobantes, usersMap, onBack, accessToken }) {
                   <td className="py-2 pr-3 whitespace-nowrap" style={{ color: C.text }}>{nombreDe(c)}</td>
                   <td className="py-2 pr-3 whitespace-nowrap" style={{ color: C.textDim }}>{emailDe(c)}</td>
                   <td className="py-2 pr-3 whitespace-nowrap" style={{ color: C.text }}>{planLabelDe(c)}</td>
-                  <td className="py-2 pr-3 whitespace-nowrap font-semibold" style={{ color: C.green }}>${fmt(precioDe(c))}</td>
+                  <td className="py-2 pr-3 whitespace-nowrap" style={{ color: C.green }}>
+                    <div className="font-semibold">${fmt(precioDe(c))}</div>
+                    {c.precio_ars_momento != null && (
+                      <div className="text-[10px]" style={{ color: C.textDim }}>${fmt(c.precio_ars_momento)} ARS</div>
+                    )}
+                  </td>
                   <td className="py-2 pr-3 whitespace-nowrap" style={{ color: C.textDim }}>
                     {c.metodo_pago === "ars" ? "Pesos ARG" : c.metodo_pago === "usd" ? "USD/USDT" : "Sin registrar"}
                   </td>
